@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Filament\Widgets;
 
 use Filament\Widgets\Widget;
+use Spatie\Health\Facades\Health;
 use Spatie\Health\ResultStores\ResultStore;
 use Throwable;
 
@@ -28,7 +29,7 @@ class CommerceHealthWidget extends Widget
     public static function canView(): bool
     {
         // Only show if health checks are available
-        return class_exists(\Spatie\Health\Facades\Health::class)
+        return class_exists(Health::class)
             && app()->bound('health');
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Exceptions;
 
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
 use Throwable;
 
 /**
@@ -166,9 +167,9 @@ class PaymentGatewayException extends CommerceException
     /**
      * Create exception for invalid status transition.
      *
-     * @param  \AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus  $from
-     * @param  \AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus  $to
-     * @param  array<\AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus>  $allowed
+     * @param  PaymentStatus  $from
+     * @param  PaymentStatus  $to
+     * @param  array<PaymentStatus>  $allowed
      */
     public static function invalidStatusTransition(
         $from,

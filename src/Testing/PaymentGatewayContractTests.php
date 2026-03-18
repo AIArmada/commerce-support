@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentGatewayInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
+use AIArmada\CommerceSupport\Contracts\Payment\WebhookHandlerInterface;
 use AIArmada\CommerceSupport\Exceptions\PaymentGatewayException;
 
 /**
@@ -104,7 +105,7 @@ trait PaymentGatewayContractTests
         $gateway = $this->getGateway();
 
         expect($gateway->getWebhookHandler())
-            ->toBeInstanceOf(\AIArmada\CommerceSupport\Contracts\Payment\WebhookHandlerInterface::class);
+            ->toBeInstanceOf(WebhookHandlerInterface::class);
     }
 
     public function test_create_payment_returns_payment_intent(): void

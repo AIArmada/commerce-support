@@ -7,6 +7,7 @@ namespace AIArmada\CommerceSupport\Traits;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerQuery;
 use AIArmada\CommerceSupport\Support\OwnerScope;
+use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -26,7 +27,7 @@ use InvalidArgumentException;
  */
 trait HasOwner // @phpstan-ignore trait.unused
 {
-    protected static function resolveOwnerScopeConfig(): \AIArmada\CommerceSupport\Support\OwnerScopeConfig
+    protected static function resolveOwnerScopeConfig(): OwnerScopeConfig
     {
         // @phpstan-ignore-next-line
         if (method_exists(static::class, 'ownerScopeConfig')) {
@@ -34,12 +35,12 @@ trait HasOwner // @phpstan-ignore trait.unused
             $config = static::ownerScopeConfig();
 
             // @phpstan-ignore-next-line
-            if ($config instanceof \AIArmada\CommerceSupport\Support\OwnerScopeConfig) {
+            if ($config instanceof OwnerScopeConfig) {
                 return $config;
             }
         }
 
-        return new \AIArmada\CommerceSupport\Support\OwnerScopeConfig(
+        return new OwnerScopeConfig(
             enabled: true,
             includeGlobal: true,
             owner: null,
@@ -77,7 +78,7 @@ trait HasOwner // @phpstan-ignore trait.unused
      */
     public function scopeForOwner(Builder $query, Model | string | null $owner = OwnerContext::CURRENT, bool $includeGlobal = false): Builder
     {
-        /** @var \AIArmada\CommerceSupport\Support\OwnerScopeConfig $config */
+        /** @var OwnerScopeConfig $config */
         $config = static::resolveOwnerScopeConfig();
 
         if (! $config->enabled) {
@@ -113,7 +114,7 @@ trait HasOwner // @phpstan-ignore trait.unused
      */
     public function scopeGlobalOnly(Builder $query): Builder
     {
-        /** @var \AIArmada\CommerceSupport\Support\OwnerScopeConfig $config */
+        /** @var OwnerScopeConfig $config */
         $config = static::resolveOwnerScopeConfig();
         $ownerTypeColumn = $config->ownerTypeColumn;
         $ownerIdColumn = $config->ownerIdColumn;

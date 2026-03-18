@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Concerns;
 
 use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Models\Audit;
 
 /**
  * Shared trait for compliance-grade auditing across commerce packages.
@@ -144,7 +145,7 @@ trait HasCommerceAudit // @phpstan-ignore trait.unused
     /**
      * Restore the model to a previous audited state.
      *
-     * @param  \OwenIt\Auditing\Models\Audit  $audit
+     * @param  Audit  $audit
      * @param  bool  $old  Whether to restore to old values (true) or new values (false)
      */
     public function restoreToAuditState($audit, bool $old = true): bool
