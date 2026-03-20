@@ -18,12 +18,8 @@ trait ValidatesConfiguration // @phpstan-ignore trait.unused
      */
     protected function validateConfiguration(string $configFile, array $requiredKeys): void
     {
-        // Skip validation during testing unless explicitly enabled
-        if (! app()->environment('production')) {
-            // Only validate if explicitly enabled via config
-            if (! config("{$configFile}.validate_config", false)) {
-                return;
-            }
+        if ($this->shouldSkipConfigurationValidation($configFile)) {
+            return;
         }
 
         foreach ($requiredKeys as $key) {
@@ -37,5 +33,24 @@ trait ValidatesConfiguration // @phpstan-ignore trait.unused
                 );
             }
         }
+    }
+
+    protected function shouldSkipConfigurationValidation(string $configFile): bool
+    {
+        $shouldValidate = (bool) config("{$configFile}.validate_config", false);
+
+        // Skip validation during testing unless explicitly enabled
+        if (! app()->environment('production')) {
+            // Only validate if explicitly enabled via config
+            if (! $shouldValidate) {
+                return true;
+            }
+        }
+
+        if (! $shouldValidate && app()->runningInConsole()) {
+            return true;
+        }
+
+        return false;
     }
 }

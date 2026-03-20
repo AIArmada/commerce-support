@@ -1,6 +1,5 @@
 {
     "name": "aiarmada/commerce-support",
-    "version": "1.0.0",
     "description": "Core helper methods and foundation code for all AIArmada Commerce packages.",
     "license": "MIT",
     "homepage": "https://github.com/aiarmada/commerce",
