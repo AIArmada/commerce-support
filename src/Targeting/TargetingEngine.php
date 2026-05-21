@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingRuleEvaluator;
 use AIArmada\CommerceSupport\Targeting\Enums\TargetingMode;
 use AIArmada\CommerceSupport\Targeting\Enums\TargetingRuleType;
+use AIArmada\CommerceSupport\Targeting\Exceptions\TargetingRuleEvaluationException;
 
 /**
  * Engine for evaluating targeting rules.
@@ -59,8 +60,12 @@ class TargetingEngine implements TargetingEngineInterface
             return true;
         }
 
-        $modeValue = $targeting['mode'] ?? 'all';
-        $mode = TargetingMode::tryFrom($modeValue) ?? TargetingMode::All;
+        if ($this->validate($targeting) !== []) {
+            return false;
+        }
+
+        $modeValue = (string) ($targeting['mode'] ?? TargetingMode::All->value);
+        $mode = TargetingMode::from($modeValue);
 
         return match ($mode) {
             TargetingMode::All => $this->evaluateAll($targeting['rules'] ?? [], $context),
@@ -81,6 +86,10 @@ class TargetingEngine implements TargetingEngineInterface
         }
 
         foreach ($rules as $rule) {
+            if (! is_array($rule)) {
+                return false;
+            }
+
             if (! $this->evaluateRule($rule, $context)) {
                 return false;
             }
@@ -101,6 +110,10 @@ class TargetingEngine implements TargetingEngineInterface
         }
 
         foreach ($rules as $rule) {
+            if (! is_array($rule)) {
+                return false;
+            }
+
             if ($this->evaluateRule($rule, $context)) {
                 return true;
             }
@@ -129,16 +142,20 @@ class TargetingEngine implements TargetingEngineInterface
     public function evaluateExpression(array $expression, TargetingContextInterface $context): bool
     {
         if (empty($expression)) {
-            return true;
+            return false;
         }
 
         if (isset($expression['and'])) {
             $subExpressions = $expression['and'];
-            if (! is_array($subExpressions)) {
+            if (! is_array($subExpressions) || $subExpressions === []) {
                 return false;
             }
 
             foreach ($subExpressions as $subExpr) {
+                if (! is_array($subExpr)) {
+                    return false;
+                }
+
                 if (! $this->evaluateExpression($subExpr, $context)) {
                     return false;
                 }
@@ -149,11 +166,15 @@ class TargetingEngine implements TargetingEngineInterface
 
         if (isset($expression['or'])) {
             $subExpressions = $expression['or'];
-            if (! is_array($subExpressions)) {
+            if (! is_array($subExpressions) || $subExpressions === []) {
                 return false;
             }
 
             foreach ($subExpressions as $subExpr) {
+                if (! is_array($subExpr)) {
+                    return false;
+                }
+
                 if ($this->evaluateExpression($subExpr, $context)) {
                     return true;
                 }
@@ -164,8 +185,8 @@ class TargetingEngine implements TargetingEngineInterface
 
         if (isset($expression['not'])) {
             $subExpr = $expression['not'];
-            if (! is_array($subExpr)) {
-                return true;
+            if (! is_array($subExpr) || $subExpr === []) {
+                return false;
             }
 
             return ! $this->evaluateExpression($subExpr, $context);
@@ -183,17 +204,30 @@ class TargetingEngine implements TargetingEngineInterface
     {
         $type = $rule['type'] ?? '';
 
-        if ($type === '') {
-            return true;
+        if (! is_string($type) || $type === '') {
+            return false;
         }
 
         $evaluator = $this->getEvaluator($type);
 
         if ($evaluator === null) {
-            return true;
+            return false;
         }
 
-        return $evaluator->evaluate($rule, $context);
+        if ($evaluator->validate($rule) !== []) {
+            return false;
+        }
+
+        try {
+            return $evaluator->evaluate($rule, $context);
+        } catch (TargetingRuleEvaluationException $exception) {
+            logger()->warning('Targeting rule evaluation failed; failing closed.', [
+                'type' => $type,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
@@ -204,23 +238,39 @@ class TargetingEngine implements TargetingEngineInterface
     {
         $errors = [];
 
-        $mode = $targeting['mode'] ?? 'all';
-        if (TargetingMode::tryFrom($mode) === null) {
-            $errors[] = "Invalid targeting mode: {$mode}";
+        $mode = $targeting['mode'] ?? TargetingMode::All->value;
+        if (! is_string($mode) || TargetingMode::tryFrom($mode) === null) {
+            $errors[] = sprintf('Invalid targeting mode: %s', is_scalar($mode) ? (string) $mode : get_debug_type($mode));
+
+            return $errors;
         }
 
-        if ($mode === 'custom') {
-            if (! isset($targeting['expression']) || ! is_array($targeting['expression'])) {
+        if ($mode === TargetingMode::Custom->value) {
+            if (! isset($targeting['expression']) || ! is_array($targeting['expression']) || $targeting['expression'] === []) {
                 $errors[] = 'Custom mode requires an expression';
             } else {
                 $errors = array_merge($errors, $this->validateExpression($targeting['expression']));
             }
         } else {
-            $rules = $targeting['rules'] ?? [];
+            if (! array_key_exists('rules', $targeting)) {
+                $errors[] = 'Non-custom targeting requires a non-empty rules array';
+
+                return $errors;
+            }
+
+            $rules = $targeting['rules'];
             if (! is_array($rules)) {
                 $errors[] = 'Rules must be an array';
+            } elseif ($rules === []) {
+                $errors[] = 'Non-custom targeting requires at least one rule';
             } else {
                 foreach ($rules as $i => $rule) {
+                    if (! is_array($rule)) {
+                        $errors[] = "Rule {$i}: Rule must be an array";
+
+                        continue;
+                    }
+
                     $ruleErrors = $this->validateRule($rule);
                     foreach ($ruleErrors as $error) {
                         $errors[] = "Rule {$i}: {$error}";
@@ -240,11 +290,25 @@ class TargetingEngine implements TargetingEngineInterface
     {
         $errors = [];
 
+        if ($expression === []) {
+            return ['Expression cannot be empty'];
+        }
+
         if (isset($expression['and'])) {
             if (! is_array($expression['and'])) {
                 $errors[] = 'AND expression must be an array';
             } else {
-                foreach ($expression['and'] as $subExpr) {
+                if ($expression['and'] === []) {
+                    $errors[] = 'AND expression must contain at least one expression';
+                }
+
+                foreach ($expression['and'] as $index => $subExpr) {
+                    if (! is_array($subExpr)) {
+                        $errors[] = "AND expression {$index} must be an object";
+
+                        continue;
+                    }
+
                     $errors = array_merge($errors, $this->validateExpression($subExpr));
                 }
             }
@@ -252,12 +316,22 @@ class TargetingEngine implements TargetingEngineInterface
             if (! is_array($expression['or'])) {
                 $errors[] = 'OR expression must be an array';
             } else {
-                foreach ($expression['or'] as $subExpr) {
+                if ($expression['or'] === []) {
+                    $errors[] = 'OR expression must contain at least one expression';
+                }
+
+                foreach ($expression['or'] as $index => $subExpr) {
+                    if (! is_array($subExpr)) {
+                        $errors[] = "OR expression {$index} must be an object";
+
+                        continue;
+                    }
+
                     $errors = array_merge($errors, $this->validateExpression($subExpr));
                 }
             }
         } elseif (isset($expression['not'])) {
-            if (! is_array($expression['not'])) {
+            if (! is_array($expression['not']) || $expression['not'] === []) {
                 $errors[] = 'NOT expression must be an object';
             } else {
                 $errors = array_merge($errors, $this->validateExpression($expression['not']));
@@ -279,29 +353,36 @@ class TargetingEngine implements TargetingEngineInterface
 
         $type = $rule['type'] ?? '';
 
-        if ($type === '') {
+        if (! is_string($type) || $type === '') {
             $errors[] = 'Rule type is required';
 
             return $errors;
         }
 
         $ruleType = TargetingRuleType::tryFrom($type);
-        if ($ruleType === null) {
+        $evaluator = $this->getEvaluator($type);
+
+        if ($ruleType === null && $evaluator === null) {
             $errors[] = "Unknown rule type: {$type}";
 
             return $errors;
         }
 
         $operator = $rule['operator'] ?? '';
-        $validOperators = $ruleType->getOperators();
+        $validOperators = $ruleType?->getOperators() ?? [];
 
-        if ($operator !== '' && ! isset($validOperators[$operator])) {
-            $errors[] = "Invalid operator '{$operator}' for rule type '{$type}'";
+        if ($operator !== '' && (! is_string($operator) || ($validOperators !== [] && ! isset($validOperators[$operator])))) {
+            $errors[] = sprintf(
+                "Invalid operator '%s' for rule type '%s'",
+                is_scalar($operator) ? (string) $operator : get_debug_type($operator),
+                $type,
+            );
         }
 
-        $evaluator = $this->getEvaluator($type);
         if ($evaluator !== null) {
             $errors = array_merge($errors, $evaluator->validate($rule));
+        } else {
+            $errors[] = "No evaluator registered for rule type: {$type}";
         }
 
         return $errors;

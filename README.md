@@ -14,7 +14,7 @@ This package provides shared utilities, traits, and standardized patterns used a
 | Requirement | Version |
 |-------------|---------|
 | PHP | 8.4+ |
-| Laravel | 12.0+ |
+| Laravel | 13.0+ |
 | akaunting/laravel-money | 6.0+ |
 | spatie/laravel-package-tools | 1.92+ |
 
@@ -38,9 +38,11 @@ composer require aiarmada/commerce-support
 
 See the [docs](docs/) folder for detailed documentation:
 
-- [Exceptions](docs/01-exceptions.md) - Exception hierarchy and usage
-- [Payment Contracts](docs/02-payment-contracts.md) - Gateway interfaces
-- [Helpers](docs/03-helpers.md) - Helper functions and traits
+- [Overview](docs/01-overview.md) - Package capabilities and architecture
+- [Configuration](docs/03-configuration.md) - Config keys and defaults
+- [Multi-tenancy](docs/04-multi-tenancy.md) - Owner scoping model and safety rules
+- [Traits & Utilities](docs/10-traits-utilities.md) - Shared traits and helper utilities
+- [Isolation Primitives](docs/11-isolation-primitives.md) - Owner-scoped cache/filesystem/job helpers
 
 ## Quick Start
 
@@ -95,16 +97,23 @@ commerce-support/
 ├── LICENSE
 ├── README.md
 ├── docs/
-│   ├── 01-exceptions.md
-│   ├── 02-payment-contracts.md
-│   └── 03-helpers.md
+│   ├── 01-overview.md
+│   ├── 03-configuration.md
+│   ├── 04-multi-tenancy.md
+│   ├── 10-traits-utilities.md
+│   └── 11-isolation-primitives.md
 └── src/
     ├── SupportServiceProvider.php
     ├── helpers.php
     ├── Commands/
     ├── Contracts/
     ├── Exceptions/
-    └── Traits/
+    ├── Middleware/
+    ├── Support/
+    ├── Targeting/
+    ├── Testing/
+    ├── Traits/
+    └── Webhooks/
 ```
 
 ## License

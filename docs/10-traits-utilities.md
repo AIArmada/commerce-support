@@ -140,20 +140,16 @@ $order->isPaymentFailed();  // bool
 $order->isRefundable();     // bool
 ```
 
-## CachesComputedValues
+## Request-Level Memoization (`once()`)
 
-Request-level memoization for expensive computations:
+Use Laravel's `once()` helper for memoization inside a single request lifecycle. This is Octane-safe and avoids long-lived static cache leakage.
 
 ```php
-use AIArmada\CommerceSupport\Traits\CachesComputedValues;
-
 class Cart extends Model
 {
-    use CachesComputedValues;
-
     public function getTotal(): int
     {
-        return $this->cacheComputedValue('total', function () {
+        return once(function (): int {
             return $this->items->sum(
                 fn ($item) => $item->quantity * $item->unit_price
             );
@@ -162,45 +158,11 @@ class Cart extends Model
 
     public function getFormattedTotal(): string
     {
-        return $this->cacheComputedValue('formatted_total', function () {
+        return once(function (): string {
             return money($this->getTotal(), $this->currency)->format();
         });
     }
 }
-```
-
-### API
-
-```php
-// Cache a value
-$value = $this->cacheComputedValue('key', fn () => expensive_computation());
-
-// Check if cached
-$this->hasComputedValue('key');
-
-// Get without recalculating
-$this->getComputedValue('key'); // null if not cached
-
-// Clear single key
-$this->forgetComputedValue('key');
-
-// Clear all cached values
-$this->clearComputedValues();
-```
-
-### When Cache Clears
-
-The cache is automatically cleared when:
-- Model is saved (`saving` event)
-- Model relationships are updated
-- `clearComputedValues()` is called explicitly
-
-```php
-$cart = Cart::find($id);
-$cart->getTotal(); // Calculated and cached
-
-$cart->addItem($product); // Cache cleared on save
-$cart->getTotal(); // Recalculated
 ```
 
 ## ValidatesConfiguration
@@ -286,17 +248,18 @@ return [
 ### How It Works
 
 ```php
-// In HasOwnerScopeConfig
-protected static function bootHasOwnerScopeConfig(): void
+// In your model
+public static function ownerScopeConfig(): OwnerScopeConfig
 {
-    $config = static::getOwnerScopeConfig();
-
-    if ($config->enabled) {
-        static::addGlobalScope(new OwnerScope(
-            includeGlobal: $config->includeGlobal
-        ));
-    }
+    return OwnerScopeConfig::fromConfig(
+        'products.owner',
+        enabledDefault: false,
+        includeGlobalDefault: false,
+    );
 }
+
+// HasOwner::bootHasOwner() reads ownerScopeConfig()
+// and applies OwnerScope automatically when enabled.
 ```
 
 ## MoneyNormalizer
@@ -394,10 +357,10 @@ $result = OwnerContext::withOwner($store, function () {
     return Product::all();
 });
 
-// Manual override (use carefully)
-OwnerContext::override($store);
-// ... operations ...
-OwnerContext::clearOverride();
+// Explicit global context
+OwnerContext::withOwner(null, function () {
+    return Product::globalOnly()->get();
+});
 
 // Reconstruct from database values
 $owner = OwnerContext::fromTypeAndId(
@@ -405,6 +368,90 @@ $owner = OwnerContext::fromTypeAndId(
     'store-uuid-here'
 );
 ```
+
+`OwnerContext::setForRequest()` is reserved for middleware/framework integrations during active HTTP requests. It throws outside HTTP request lifecycle; use `OwnerContext::withOwner(...)` in jobs/commands and other non-HTTP surfaces.
+
+When using `OwnerContextJob`, prefer an explicit `OwnerScopedJob` implementation that returns `OwnerJobContext`.
+
+Laravel convention guidance:
+
+- Use camelCase for PHP fields (`ownerType`, `ownerId`, `ownerIsGlobal`)
+- Keep snake_case for persistence/wire payload keys (`owner_type`, `owner_id`)
+
+`ownerIsGlobal=true` is mutually exclusive with owner-bearing payload data (`ownerType`/`ownerId` or owner-bearing model payloads). Contradictory payloads fail closed.
+
+## OwnerScopeIdentifiable
+
+If you need to use owner-scoped helpers with non-Eloquent objects, implement `OwnerScopeIdentifiable`.
+
+```php
+use AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable;
+
+final readonly class OwnerReference implements OwnerScopeIdentifiable
+{
+    public function __construct(
+        private string $ownerType,
+        private string $ownerId,
+    ) {}
+
+    public function getMorphClass(): string
+    {
+        return $this->ownerType;
+    }
+
+    public function getKey(): string
+    {
+        return $this->ownerId;
+    }
+}
+```
+
+## OwnerTuple utilities
+
+Use the `Support/OwnerTuple` helpers when code works with raw rows, queue payloads, event payloads, or configurable owner columns.
+
+### `OwnerTupleColumns`
+
+Resolves the physical owner tuple column names for a model or config key.
+
+```php
+use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleColumns;
+
+$columns = OwnerTupleColumns::forModelClass(Product::class);
+```
+
+### `OwnerTupleParser`
+
+Parses owner tuple data into a tri-state result:
+
+- owner tuple
+- explicit global tuple
+- unresolved/malformed tuple
+
+```php
+use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleParser;
+
+$parsed = OwnerTupleParser::fromRow($row, $columns);
+
+if ($parsed->isOwner()) {
+    $owner = $parsed->toOwnerModel();
+}
+```
+
+For security-sensitive paths, malformed tuples should throw. Batch tooling may opt into unresolved results and skip malformed rows deliberately.
+
+This is the supported alternative to raw duck-typing for `OwnerScopeKey`, `OwnerCache`, and `OwnerFilesystem`.
+
+## Isolation Primitives
+
+`commerce-support` includes non-query isolation helpers for shared-database tenancy:
+
+- `OwnerCache` — owner-scoped cache keys and tagged owner groups when the driver supports tags
+- `OwnerFilesystem` — owner-scoped filesystem paths and access helpers
+- `OwnerContextJob` — queued-job helper that enters owner context automatically
+- `OwnerIdentificationMiddleware` — base middleware for request-time owner identification
+
+See [`11-isolation-primitives.md`](./11-isolation-primitives.md) for end-to-end usage patterns.
 
 ## OwnerWriteGuard
 
@@ -428,6 +475,12 @@ $product = OwnerWriteGuard::findOrFailForOwner(
     includeGlobal: true
 );
 ```
+
+Write-path guidance:
+
+- Prefer calling `OwnerWriteGuard::findOrFailForOwner(...)` directly at mutation boundaries.
+- Keep `includeGlobal: false` as the default for tenant-context writes.
+- Use `includeGlobal: true` only when business rules explicitly allow global-row writes and the call site is intentionally scoped.
 
 ## OwnerRouteBinding
 

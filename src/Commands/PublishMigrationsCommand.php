@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Commands;
 
+use AIArmada\CommerceSupport\Actions\DiscoverCommerceMigrationPublishTagsAction;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Arr;
@@ -165,43 +166,7 @@ final class PublishMigrationsCommand extends Command
      */
     private function migrationPublishTagsByProvider(): array
     {
-        $migrationTags = array_values(array_filter(
-            ServiceProvider::publishableGroups(),
-            static fn (string $group): bool => str_ends_with($group, '-migrations')
-        ));
-
-        if ($migrationTags === []) {
-            return [];
-        }
-
-        $result = [];
-
-        /** @var array<int, class-string> $providers */
-        $providers = ServiceProvider::publishableProviders();
-
-        foreach ($providers as $providerClass) {
-            if (! str_starts_with($providerClass, 'AIArmada\\')) {
-                continue;
-            }
-
-            $tagsForProvider = [];
-
-            foreach ($migrationTags as $tag) {
-                $paths = ServiceProvider::pathsToPublish($providerClass, $tag);
-
-                if ($paths !== []) {
-                    $tagsForProvider[] = $tag;
-                }
-            }
-
-            if ($tagsForProvider !== []) {
-                $result[$providerClass] = array_values(array_unique($tagsForProvider));
-            }
-        }
-
-        ksort($result);
-
-        return $result;
+        return DiscoverCommerceMigrationPublishTagsAction::run();
     }
 
     /**

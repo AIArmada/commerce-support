@@ -39,14 +39,21 @@ $engine = app(TargetingEngine::class);
 // Create context from cart
 $context = TargetingContext::fromCart($cart);
 
-// Evaluate rules
-$rules = [
-    ['type' => 'cart_value', 'operator' => 'gte', 'value' => 5000],
-    ['type' => 'user_segment', 'segments' => ['vip', 'premium']],
+// Evaluate targeting configuration
+$targeting = [
+    'mode' => 'all',
+    'rules' => [
+        ['type' => 'cart_value', 'operator' => '>=', 'value' => 5000],
+        ['type' => 'user_segment', 'operator' => 'in', 'values' => ['vip', 'premium']],
+    ],
 ];
 
-$eligible = $engine->evaluate($rules, $context, mode: 'all');
+$eligible = $engine->evaluate($targeting, $context);
 ```
+
+Empty targeting (`[]`) means “no restrictions” and returns `true`. Non-empty invalid targeting fails closed and returns `false`; validate admin-authored targeting before storing it.
+
+For non-custom modes (`all` / `any`), `rules` must be present and non-empty. Payloads like `['mode' => 'all']` or `['mode' => 'any', 'rules' => []]` are invalid and fail closed.
 
 ## Evaluation Modes
 
@@ -57,7 +64,10 @@ All rules must pass:
 ```php
 $eligible = $engine->evaluateAll($rules, $context);
 // OR
-$eligible = $engine->evaluate($rules, $context, mode: 'all');
+$eligible = $engine->evaluate([
+    'mode' => 'all',
+    'rules' => $rules,
+], $context);
 ```
 
 ### Any Mode (OR Logic)
@@ -67,7 +77,10 @@ At least one rule must pass:
 ```php
 $eligible = $engine->evaluateAny($rules, $context);
 // OR
-$eligible = $engine->evaluate($rules, $context, mode: 'any');
+$eligible = $engine->evaluate([
+    'mode' => 'any',
+    'rules' => $rules,
+], $context);
 ```
 
 ### Custom Mode (Boolean Expression)
@@ -75,17 +88,27 @@ $eligible = $engine->evaluate($rules, $context, mode: 'any');
 Complex combinations using AND, OR, NOT:
 
 ```php
-$rules = [
-    'min_value' => ['type' => 'cart_value', 'operator' => 'gte', 'value' => 5000],
-    'vip_user' => ['type' => 'user_segment', 'segments' => ['vip']],
-    'weekend' => ['type' => 'day_of_week', 'days' => ['saturday', 'sunday']],
-    'not_bulk' => ['type' => 'cart_quantity', 'operator' => 'lte', 'value' => 10],
+$targeting = [
+    'mode' => 'custom',
+    'expression' => [
+        'or' => [
+            [
+                'and' => [
+                    ['type' => 'cart_value', 'operator' => '>=', 'value' => 5000],
+                    ['type' => 'user_segment', 'operator' => 'in', 'values' => ['vip']],
+                ],
+            ],
+            [
+                'and' => [
+                    ['type' => 'day_of_week', 'operator' => 'in', 'values' => ['saturday', 'sunday']],
+                    ['type' => 'cart_quantity', 'operator' => '<=', 'value' => 10],
+                ],
+            ],
+        ],
+    ],
 ];
 
-// (min_value AND vip_user) OR (weekend AND not_bulk)
-$expression = '(min_value AND vip_user) OR (weekend AND not_bulk)';
-
-$eligible = $engine->evaluateExpression($rules, $expression, $context);
+$eligible = $engine->evaluate($targeting, $context);
 ```
 
 ## TargetingContext
@@ -102,19 +125,17 @@ $context = TargetingContext::fromCart($cart);
 
 // Manual construction
 $context = new TargetingContext(
-    cartValue: 15000,           // Cart total in cents
-    cartQuantity: 3,            // Total items
-    productIdentifiers: ['SKU-001', 'SKU-002'],
-    productCategories: ['electronics', 'accessories'],
+    cart: $cart,
     user: $user,
-    userSegments: ['premium', 'returning'],
-    channel: 'web',
-    device: 'mobile',
-    country: 'MY',
-    region: 'KL',
-    city: 'Kuala Lumpur',
-    metadata: ['referral_code' => 'SAVE20'],
-    currentTime: now(),
+    request: request(),
+    metadata: [
+        'channel' => 'web',
+        'device' => 'mobile',
+        'country' => 'MY',
+        'region' => 'KL',
+        'city' => 'Kuala Lumpur',
+        'referral_code' => 'SAVE20',
+    ],
 );
 ```
 
@@ -142,8 +163,8 @@ $context = new TargetingContext(
 
 #### cart_value
 ```php
-['type' => 'cart_value', 'operator' => 'gte', 'value' => 5000]
-// Operators: eq, neq, gt, gte, lt, lte, between
+['type' => 'cart_value', 'operator' => '>=', 'value' => 5000]
+// Operators: =, !=, >, >=, <, <=, between
 // value in cents
 ```
 
@@ -154,13 +175,13 @@ $context = new TargetingContext(
 
 #### product_in_cart
 ```php
-['type' => 'product_in_cart', 'products' => ['SKU-001', 'SKU-002'], 'match' => 'any']
-// match: 'any' (default) or 'all'
+['type' => 'product_in_cart', 'operator' => 'contains_any', 'values' => ['SKU-001', 'SKU-002']]
+// Operators: in, not_in, contains_any, contains_all
 ```
 
 #### category_in_cart
 ```php
-['type' => 'category_in_cart', 'categories' => ['electronics'], 'match' => 'any']
+['type' => 'category_in_cart', 'operator' => 'in', 'values' => ['electronics']]
 ```
 
 #### product_quantity
@@ -219,22 +240,17 @@ $context = new TargetingContext(
 
 #### user_segment
 ```php
-['type' => 'user_segment', 'segments' => ['vip', 'premium'], 'match' => 'any']
+['type' => 'user_segment', 'operator' => 'in', 'values' => ['vip', 'premium']]
 ```
 
-#### first_time_buyer
+#### first_purchase
 ```php
-['type' => 'first_time_buyer', 'value' => true]
+['type' => 'first_purchase', 'value' => true]
 ```
 
-#### user_order_count
+#### clv
 ```php
-['type' => 'user_order_count', 'operator' => 'gte', 'value' => 5]
-```
-
-#### user_lifetime_value
-```php
-['type' => 'user_lifetime_value', 'operator' => 'gte', 'value' => 100000]
+['type' => 'clv', 'operator' => '>=', 'value' => 100000]
 // value in cents
 ```
 
@@ -250,10 +266,12 @@ $context = new TargetingContext(
 ]
 ```
 
-#### time_range
+`date_range` is fail-closed: malformed or missing date fields are treated as rule evaluation failures, logged by the engine, and return `false` (not eligible).
+
+#### time_window
 ```php
 [
-    'type' => 'time_range',
+    'type' => 'time_window',
     'start' => '09:00',
     'end' => '17:00',
     'timezone' => 'Asia/Kuala_Lumpur'
@@ -283,12 +301,12 @@ $context = new TargetingContext(
 
 #### channel
 ```php
-['type' => 'channel', 'channels' => ['web', 'mobile']]
+['type' => 'channel', 'operator' => 'in', 'values' => ['web', 'mobile']]
 ```
 
 #### device
 ```php
-['type' => 'device', 'devices' => ['mobile', 'tablet']]
+['type' => 'device', 'operator' => 'in', 'values' => ['mobile', 'tablet']]
 ```
 
 ### Custom Rules
@@ -301,15 +319,7 @@ $context = new TargetingContext(
     'operator' => 'eq',
     'value' => 'SAVE20'
 ]
-// Operators: eq, neq, contains, not_contains, exists, not_exists
-```
-
-#### custom (Callable)
-```php
-[
-    'type' => 'custom',
-    'evaluator' => fn(TargetingContext $ctx) => $ctx->getUser()?->is_verified ?? false
-]
+// Operators: exists, =, !=, contains, in, flag
 ```
 
 ## Creating Custom Evaluators
@@ -317,12 +327,17 @@ $context = new TargetingContext(
 ### Implement the Interface
 
 ```php
-use AIArmada\CommerceSupport\Targeting\Contracts\RuleEvaluatorInterface;
-use AIArmada\CommerceSupport\Targeting\TargetingContext;
+use AIArmada\CommerceSupport\Targeting\Contracts\TargetingContextInterface;
+use AIArmada\CommerceSupport\Targeting\Contracts\TargetingRuleEvaluator;
 
-class LoyaltyPointsEvaluator implements RuleEvaluatorInterface
+class LoyaltyPointsEvaluator implements TargetingRuleEvaluator
 {
-    public function evaluate(array $rule, TargetingContext $context): bool
+    public function supports(string $type): bool
+    {
+        return $type === $this->getType();
+    }
+
+    public function evaluate(array $rule, TargetingContextInterface $context): bool
     {
         $user = $context->getUser();
         
@@ -335,9 +350,9 @@ class LoyaltyPointsEvaluator implements RuleEvaluatorInterface
         $value = $rule['value'] ?? 0;
 
         return match ($operator) {
-            'eq' => $points === $value,
-            'gte' => $points >= $value,
-            'lte' => $points <= $value,
+            '=' => $points === $value,
+            '>=' => $points >= $value,
+            '<=' => $points <= $value,
             default => false,
         };
     }
@@ -347,10 +362,13 @@ class LoyaltyPointsEvaluator implements RuleEvaluatorInterface
         return 'loyalty_points';
     }
 
-    public function validate(array $rule): bool
+    public function validate(array $rule): array
     {
-        return isset($rule['operator'], $rule['value'])
-            && is_numeric($rule['value']);
+        if (! isset($rule['value']) || ! is_numeric($rule['value'])) {
+            return ['Value must be a number'];
+        }
+
+        return [];
     }
 }
 ```
@@ -370,10 +388,13 @@ public function boot(): void
 
 ```php
 $rules = [
-    ['type' => 'loyalty_points', 'operator' => 'gte', 'value' => 1000],
+    ['type' => 'loyalty_points', 'operator' => '>=', 'value' => 1000],
 ];
 
-$eligible = $engine->evaluate($rules, $context);
+$eligible = $engine->evaluate([
+    'mode' => 'all',
+    'rules' => $rules,
+], $context);
 ```
 
 ## Validation
@@ -381,17 +402,19 @@ $eligible = $engine->evaluate($rules, $context);
 Validate rules before storing:
 
 ```php
-$rules = [
-    ['type' => 'cart_value', 'operator' => 'gte', 'value' => 5000],
-    ['type' => 'invalid_type', 'foo' => 'bar'],  // Invalid
+$targeting = [
+    'mode' => 'all',
+    'rules' => [
+        ['type' => 'cart_value', 'operator' => '>=', 'value' => 5000],
+        ['type' => 'invalid_type', 'foo' => 'bar'],
+    ],
 ];
 
-$valid = $engine->validate($rules);
-// Returns false if any rule is invalid
-
-// Get validation errors
-$errors = $engine->getValidationErrors($rules);
+$errors = $engine->validate($targeting);
 // ['Rule 1 (invalid_type): Unknown rule type']
+
+$eligible = $engine->evaluate($targeting, $context);
+// false: non-empty invalid targeting fails closed
 ```
 
 ## Real-world Examples
@@ -407,9 +430,11 @@ class Promotion extends Model
         $context = TargetingContext::fromCart($cart);
 
         return $engine->evaluate(
-            $this->targeting_rules,
-            $context,
-            mode: $this->targeting_mode
+            [
+                'mode' => $this->targeting_mode,
+                'rules' => $this->targeting_rules,
+            ],
+            $context
         );
     }
 }
@@ -429,7 +454,10 @@ class ShippingMethod extends Model
         $engine = app(TargetingEngine::class);
         $context = TargetingContext::fromCart($cart);
 
-        return $engine->evaluateAll($this->availability_rules, $context);
+        return $engine->evaluate([
+            'mode' => 'all',
+            'rules' => $this->availability_rules,
+        ], $context);
     }
 }
 ```
@@ -445,12 +473,13 @@ $rules = [
     ],
     'min_cart' => [
         'type' => 'cart_value',
-        'operator' => 'gte',
+        'operator' => '>=',
         'value' => 10000,
     ],
     'vip_member' => [
         'type' => 'user_segment',
-        'segments' => ['vip'],
+        'operator' => 'in',
+        'values' => ['vip'],
     ],
     'from_malaysia' => [
         'type' => 'geographic',
@@ -460,9 +489,21 @@ $rules = [
 
 // VIP members from Malaysia get the sale anytime
 // Others need min cart during sale period
-$expression = '(vip_member AND from_malaysia) OR (during_sale AND min_cart)';
+$targeting = [
+    'mode' => 'custom',
+    'expression' => [
+        'or' => [
+            [
+                'and' => [$rules['vip_member'], $rules['from_malaysia']],
+            ],
+            [
+                'and' => [$rules['during_sale'], $rules['min_cart']],
+            ],
+        ],
+    ],
+];
 
-$eligible = $engine->evaluateExpression($rules, $expression, $context);
+$eligible = $engine->evaluate($targeting, $context);
 ```
 
 ## Performance Tips

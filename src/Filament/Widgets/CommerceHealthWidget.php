@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Filament\Widgets;
 
 use Filament\Widgets\Widget;
+use Illuminate\Support\Facades\Gate;
 use Spatie\Health\Facades\Health;
 use Spatie\Health\ResultStores\ResultStore;
 use Throwable;
@@ -28,9 +29,23 @@ class CommerceHealthWidget extends Widget
 
     public static function canView(): bool
     {
-        // Only show if health checks are available
-        return class_exists(Health::class)
-            && app()->bound('health');
+        if (! class_exists(Health::class) || ! app()->bound('health')) {
+            return false;
+        }
+
+        $user = auth()->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $ability = (string) config('commerce-support.health.view_ability', 'viewCommerceHealth');
+
+        if ($ability === '') {
+            return false;
+        }
+
+        return Gate::forUser($user)->allows($ability);
     }
 
     /**

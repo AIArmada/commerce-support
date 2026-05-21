@@ -15,7 +15,8 @@ if (! function_exists('commerce_json_column_type')) {
         $global = env('COMMERCE_JSON_COLUMN_TYPE');
 
         if ($packageKey !== null) {
-            $envKey = mb_strtoupper($packageKey) . '_JSON_COLUMN_TYPE';
+            $normalizedPackageKey = str_replace('-', '_', $packageKey);
+            $envKey = mb_strtoupper($normalizedPackageKey) . '_JSON_COLUMN_TYPE';
             $packageSpecific = env($envKey);
 
             if (is_string($packageSpecific) && $packageSpecific !== '') {

@@ -14,6 +14,7 @@ final class OwnerScopeConfig
         public readonly ?Model $owner = null,
         public readonly string $ownerTypeColumn = 'owner_type',
         public readonly string $ownerIdColumn = 'owner_id',
+        public readonly bool $autoAssignOnCreate = true,
     ) {}
 
     public static function fromConfig(
@@ -23,6 +24,7 @@ final class OwnerScopeConfig
         ?Model $owner = null,
         string $ownerTypeColumn = 'owner_type',
         string $ownerIdColumn = 'owner_id',
+        bool $autoAssignOnCreateDefault = true,
     ): self {
         return new self(
             enabled: (bool) config($configKey . '.enabled', $enabledDefault),
@@ -30,6 +32,7 @@ final class OwnerScopeConfig
             owner: $owner,
             ownerTypeColumn: $ownerTypeColumn,
             ownerIdColumn: $ownerIdColumn,
+            autoAssignOnCreate: (bool) config($configKey . '.auto_assign_on_create', $autoAssignOnCreateDefault),
         );
     }
 }

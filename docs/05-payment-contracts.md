@@ -34,11 +34,22 @@ The core contract that all payment gateways must implement:
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentGatewayInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\CheckoutableInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\WebhookHandlerInterface;
+use Akaunting\Money\Money;
 
 interface PaymentGatewayInterface
 {
+    public function getName(): string;
+
+    public function getDisplayName(): string;
+
+    public function isTestMode(): bool;
+
     public function createPayment(
         CheckoutableInterface $checkoutable,
+        ?CustomerInterface $customer = null,
         array $options = []
     ): PaymentIntentInterface;
 
@@ -48,24 +59,19 @@ interface PaymentGatewayInterface
 
     public function refundPayment(
         string $paymentId,
-        ?int $amount = null,
-        ?string $reason = null
+        ?Money $amount = null
     ): PaymentIntentInterface;
 
     public function capturePayment(
         string $paymentId,
-        ?int $amount = null
+        ?Money $amount = null
     ): PaymentIntentInterface;
 
-    public function getPaymentMethods(string $customerId): array;
+    public function getPaymentMethods(array $filters = []): array;
 
     public function supports(string $feature): bool;
 
-    public function getIdentifier(): string;
-
-    public function getName(): string;
-
-    public function getCheckoutUrl(string $paymentId): ?string;
+    public function getWebhookHandler(): WebhookHandlerInterface;
 }
 ```
 
@@ -84,12 +90,13 @@ class StripeGateway implements PaymentGatewayInterface
 
     public function createPayment(
         CheckoutableInterface $checkoutable,
+        ?CustomerInterface $customer = null,
         array $options = []
     ): PaymentIntentInterface {
         $intent = $this->stripe->paymentIntents->create([
             'amount' => $checkoutable->getTotalInCents(),
             'currency' => strtolower($checkoutable->getCurrency()),
-            'customer' => $checkoutable->getCustomer()->getGatewayId(),
+            'customer' => $customer?->getGatewayId(),
             'metadata' => $checkoutable->getMetadata(),
         ]);
 
@@ -499,14 +506,12 @@ class PaymentService
     public function checkout(Cart $cart): PaymentIntentInterface
     {
         // Cart implements CheckoutableInterface
-        $intent = $this->gateway->createPayment($cart, [
+        $intent = $this->gateway->createPayment($cart, null, [
             'capture_method' => 'automatic',
         ]);
 
-        if ($intent->getStatus()->isPending()) {
-            // Redirect to checkout
-            return redirect($intent->getCheckoutUrl());
-        }
+        // In a controller, redirect using $intent->getCheckoutUrl() when pending.
+        // This service returns the intent only.
 
         return $intent;
     }

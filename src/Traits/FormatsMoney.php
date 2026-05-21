@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Traits;
 
-use OutOfBoundsException;
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 
 /**
  * Provides money formatting capabilities for models using Akaunting Money.
@@ -28,16 +28,7 @@ trait FormatsMoney
      */
     protected function formatMoney(int $amountInMinorUnits, ?string $currency = null): string
     {
-        $currency ??= $this->currency ?? $this->getDefaultCurrency();
-
-        try {
-            // convert=false means the amount is already in minor units (cents/sen)
-            // Akaunting Money will divide by subunit when formatting
-            return money($amountInMinorUnits, $currency, false)->format();
-        } catch (OutOfBoundsException) {
-            // Fallback for unknown currencies: format as "CODE amount.00"
-            return $currency . ' ' . number_format($amountInMinorUnits / 100, 2);
-        }
+        return MoneyFormatter::formatMinor($amountInMinorUnits, $currency ?? $this->currency ?? $this->getDefaultCurrency());
     }
 
     /**

@@ -11,6 +11,7 @@ The foundational package for the AIArmada Commerce ecosystem. Provides shared co
 Commerce Support serves as the **single source of truth** for:
 
 - **Multi-tenancy** - Owner scoping primitives and enforcement
+- **Isolation Primitives** - Cache, filesystem, queue, and middleware helpers for single-database multitenancy
 - **Payment Gateway Contracts** - Universal interfaces for any payment provider
 - **Targeting Engine** - Advanced rule-based eligibility evaluation
 - **Auditing & Logging** - Compliance-grade tracking with Spatie packages
@@ -38,22 +39,25 @@ commerce-support/
 ├── Contracts/              # Interfaces for cross-package communication
 │   ├── Events/             # Event interfaces (Cart, Inventory, Voucher)
 │   ├── Payment/            # Payment gateway abstractions
-│   └── ...                 # Owner resolver, Auditable, Loggable
+│   └── ...                 # Owner resolver, owner scope, Auditable, Loggable
 ├── Concerns/               # Shared traits
 │   ├── HasCommerceAudit    # Compliance auditing
 │   └── LogsCommerceActivity # Activity logging
 ├── Traits/                 # Model traits
 │   ├── HasOwner            # Multi-tenancy support
 │   ├── HasOwnerScopeConfig # Config-based scope setup
-│   ├── CachesComputedValues # Request-level caching
 │   └── ValidatesConfiguration
 ├── Support/                # Core utilities
 │   ├── MoneyNormalizer     # Price normalization
 │   ├── OwnerContext        # Tenant context management
+│   ├── OwnerCache          # Owner-scoped cache helper
+│   ├── OwnerFilesystem     # Owner-scoped storage helper
 │   ├── OwnerScope          # Eloquent global scope
+│   ├── OwnerScopeKey       # Stable owner scope hashing
 │   ├── OwnerQuery          # Query builder helpers
 │   ├── OwnerWriteGuard     # Write validation
 │   └── OwnerRouteBinding   # Route model binding
+├── Middleware/             # Request-time owner identification helpers
 ├── Targeting/              # Rule evaluation engine
 │   ├── TargetingEngine     # Main evaluation engine
 │   ├── TargetingContext    # Context object
@@ -75,6 +79,19 @@ composer require aiarmada/commerce-support
 The service provider auto-registers via Laravel package discovery.
 
 ## Quick Start
+
+### Isolation Primitives
+
+```php
+use AIArmada\CommerceSupport\Support\OwnerCache;
+use AIArmada\CommerceSupport\Support\OwnerFilesystem;
+
+$summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), function () use ($cart) {
+    return $cart->computeSummary();
+});
+
+OwnerFilesystem::put($owner, 'exports/orders.csv', $csv);
+```
 
 ### Multi-tenancy
 

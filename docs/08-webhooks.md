@@ -42,7 +42,7 @@ return [
             'name' => 'chip',
             'signing_secret' => env('CHIP_WEBHOOK_SECRET'),
             'signature_header_name' => 'X-Signature',
-            'signature_validator' => \AIArmada\CommerceSupport\Webhooks\CommerceSignatureValidator::class,
+            'signature_validator' => \App\Webhooks\ChipSignatureValidator::class,
             'webhook_profile' => \AIArmada\CommerceSupport\Webhooks\CommerceWebhookProfile::class,
             'webhook_model' => \Spatie\WebhookClient\Models\WebhookCall::class,
             'process_webhook_job' => \App\Jobs\ProcessChipWebhook::class,
@@ -55,15 +55,11 @@ return [
 
 ```php
 use AIArmada\CommerceSupport\Webhooks\CommerceWebhookProcessor;
-use Spatie\WebhookClient\Models\WebhookCall;
 
 class ProcessChipWebhook extends CommerceWebhookProcessor
 {
-    public function process(WebhookCall $webhookCall): void
+    protected function processEvent(string $eventType, array $payload): void
     {
-        $payload = $webhookCall->payload;
-        $eventType = $payload['event'] ?? null;
-
         match ($eventType) {
             'payment.completed' => $this->handlePaymentCompleted($payload),
             'payment.failed' => $this->handlePaymentFailed($payload),
@@ -94,25 +90,21 @@ Route::webhooks('webhooks/chip', 'chip');
 
 ### CommerceSignatureValidator
 
-The default validator uses HMAC-SHA256:
+`CommerceSignatureValidator` is an abstract HMAC base. Create a concrete gateway validator that defines the signature header:
 
 ```php
 use AIArmada\CommerceSupport\Webhooks\CommerceSignatureValidator;
 
-class CommerceSignatureValidator implements SignatureValidator
+class ChipSignatureValidator extends CommerceSignatureValidator
 {
-    public function isValid(Request $request, WebhookConfig $config): bool
+    protected function getSignatureHeader(): string
     {
-        $signature = $request->header($config->signatureHeaderName);
-        $payload = $request->getContent();
-        $secret = $config->signingSecret;
-
-        $expectedSignature = hash_hmac('sha256', $payload, $secret);
-
-        return hash_equals($expectedSignature, $signature);
+        return 'X-Signature';
     }
 }
 ```
+
+The base validator rejects missing signatures, invalid signatures, and empty signing secrets. It signs the raw request body with HMAC-SHA256 by default and compares with `hash_equals()`.
 
 ### Custom Validator
 
@@ -192,34 +184,45 @@ Extend `CommerceWebhookProcessor` for common behavior:
 
 ```php
 use AIArmada\CommerceSupport\Webhooks\CommerceWebhookProcessor;
-use Spatie\WebhookClient\Models\WebhookCall;
 
-abstract class CommerceWebhookProcessor extends Job implements ShouldQueue
+class ProcessPaymentWebhook extends CommerceWebhookProcessor
 {
-    use Queueable;
-
-    public int $tries = 3;
-    public int $backoff = 60;
-
-    abstract public function process(WebhookCall $webhookCall): void;
-
-    public function handle(): void
+    protected function processEvent(string $eventType, array $payload): void
     {
-        $this->process($this->webhookCall);
+        match ($eventType) {
+            'payment.completed' => $this->handlePaymentCompleted($payload),
+            default => null,
+        };
     }
 }
 ```
 
+The base job extracts the event type from `event_type`, `event`, or `type`, acquires a row lock, skips already-processed rows, deduplicates processed provider event IDs across webhook rows when an event ID is present, calls `processEvent()`, then marks the `WebhookCall` as processed.
+
 ### Idempotent Processing
 
-Always check for duplicate processing:
+The base handler is idempotent at two levels:
+
+**Row-level** — a `SELECT ... FOR UPDATE` lock plus `processed_at` check prevents a single row from being processed twice even under concurrent delivery.
+
+**Provider-event level** — when the payload carries an event ID (`event_id`, `eventId`, `id`, or `data.id`) the processor checks for another already-processed row with the same webhook name and event ID. The event type is matched strictly:
+
+- If the current payload has an event type field (`event_type`, `event`, or `type`), a candidate row must carry the **same type value** in at least one of those fields. A row with the same event ID but a different event type (e.g. `payment.completed` vs `payment.refunded`) is **not** considered a duplicate and will be processed independently.
+- If the current payload has **no** event type in any field, only rows that also have no event type are treated as duplicates, preventing accidental suppression when a provider starts adding type fields in a later webhook version.
+- If the payload has **no event ID**, cross-row deduplication is skipped entirely and only row-level idempotency applies.
+
+You should still make your own domain writes idempotent inside `processEvent()` (for example, avoid double-marking paid orders):
 
 ```php
 class ProcessPaymentWebhook extends CommerceWebhookProcessor
 {
-    public function process(WebhookCall $webhookCall): void
+    protected function processEvent(string $eventType, array $payload): void
     {
-        $paymentId = $webhookCall->payload['payment_id'];
+        if ($eventType !== 'payment.completed') {
+            return;
+        }
+
+        $paymentId = $payload['payment_id'];
 
         // Idempotency check
         $order = Order::where('payment_id', $paymentId)->first();
@@ -245,10 +248,8 @@ use AIArmada\CommerceSupport\Exceptions\WebhookVerificationException;
 
 class ProcessPaymentWebhook extends CommerceWebhookProcessor
 {
-    public function process(WebhookCall $webhookCall): void
+    protected function processEvent(string $eventType, array $payload): void
     {
-        $payload = $webhookCall->payload;
-
         if (! isset($payload['payment_id'])) {
             throw WebhookVerificationException::invalidPayload(
                 'Missing payment_id in webhook payload'
@@ -314,7 +315,10 @@ it('processes payment completed webhook', function () {
 
     $webhookCall = WebhookCall::create([
         'name' => 'chip',
+        'url' => 'https://example.test/webhooks/chip',
+        'headers' => [],
         'payload' => $payload,
+        'exception' => null,
     ]);
 
     $job = new ProcessChipWebhook($webhookCall);

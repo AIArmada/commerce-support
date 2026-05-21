@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Commands;
 
+use AIArmada\CommerceSupport\Actions\EnsureCustomGuidelinesSymlinkAction;
+use AIArmada\CommerceSupport\Actions\ResolveProjectRootAction;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
@@ -37,7 +39,7 @@ final class BoostUpdateCommand extends Command
 
     public function handle(AgentsDetector $detector): int
     {
-        $projectRoot = $this->getProjectRoot();
+        $projectRoot = ResolveProjectRootAction::run();
         $configPath = $projectRoot . '/boost.json';
 
         if (! file_exists($configPath)) {
@@ -49,8 +51,12 @@ final class BoostUpdateCommand extends Command
         $this->components->info("Updating Boost guidelines for: {$projectRoot}");
         $this->newLine();
 
-        // Ensure custom guidelines are accessible from testbench skeleton
-        $this->ensureCustomGuidelinesSymlink($projectRoot);
+        EnsureCustomGuidelinesSymlinkAction::run(
+            projectRoot: $projectRoot,
+            warn: function (string $message): void {
+                $this->components->warn($message);
+            },
+        );
 
         // Read config from actual project root
         $config = json_decode(file_get_contents($configPath), true);
@@ -231,71 +237,5 @@ final class BoostUpdateCommand extends Command
             ->count();
 
         return $testCount >= 6;
-    }
-
-    /**
-     * Get the actual project root directory.
-     *
-     * In testbench environments, base_path() returns the skeleton directory.
-     * We use the Orchestra Testbench package_path() or getcwd() to get the real root.
-     */
-    private function getProjectRoot(): string
-    {
-        $cwd = getcwd();
-
-        if (is_string($cwd) && file_exists($cwd . '/composer.json')) {
-            return $cwd;
-        }
-
-        // Check if we're in a testbench environment
-        if (function_exists('\\Orchestra\\Testbench\\package_path')) {
-            return \Orchestra\Testbench\package_path();
-        }
-
-        // Fallback to application base path
-        return base_path();
-    }
-
-    /**
-     * Ensure custom guidelines from project root are accessible via symlink.
-     *
-     * The GuidelineComposer uses base_path() which in testbench points to the
-     * skeleton directory. We create a symlink so custom guidelines are found.
-     */
-    private function ensureCustomGuidelinesSymlink(string $projectRoot): void
-    {
-        $sourceDir = $projectRoot . '/.ai/guidelines';
-        $targetDir = base_path('.ai');
-        $targetLink = $targetDir . '/guidelines';
-
-        // Skip if source doesn't exist
-        if (! is_dir($sourceDir)) {
-            return;
-        }
-
-        // Skip if already correctly linked
-        if (is_link($targetLink) && readlink($targetLink) === $sourceDir) {
-            return;
-        }
-
-        // Create target directory if needed
-        if (! is_dir($targetDir) && ! mkdir($targetDir, 0755, true)) {
-            throw new RuntimeException("Failed to create directory: {$targetDir}");
-        }
-
-        // Remove existing symlink if present; never delete real directories/files.
-        if (is_link($targetLink)) {
-            if (! unlink($targetLink)) {
-                throw new RuntimeException("Failed to remove existing symlink: {$targetLink}");
-            }
-        } elseif (file_exists($targetLink)) {
-            $this->components->warn("Skipping symlink creation; a real path already exists at: {$targetLink}");
-
-            return;
-        }
-
-        if (! symlink($sourceDir, $targetLink)) {
-            throw new RuntimeException("Failed to create symlink: {$targetLink}");
-        }
     }
 }

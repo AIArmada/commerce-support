@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Commands;
 
+use AIArmada\CommerceSupport\Actions\UpsertEnvVariablesAction;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
@@ -145,53 +146,15 @@ final class SetupCommand extends Command
      */
     private function updateEnvFile(array $updates): void
     {
-        $envPath = base_path('.env');
-        $content = File::get($envPath);
-        $lines = explode("\n", $content);
-        $existingKeys = [];
-
-        // Find existing keys
-        foreach ($lines as $index => $line) {
-            foreach ($updates as $key => $value) {
-                if (str_starts_with(mb_trim($line), $key . '=')) {
-                    $existingKeys[$key] = $index;
-
-                    if (! $this->option('force')) {
-                        $this->components->warn("Skipping {$key} (already exists, use --force to overwrite)");
-                        unset($updates[$key]);
-                    }
-                }
-            }
-        }
-
-        // Update existing or append new
-        foreach ($updates as $key => $value) {
-            $envLine = $key . '=' . $this->formatEnvValue($value);
-
-            if (isset($existingKeys[$key])) {
-                // Update existing line
-                $lines[$existingKeys[$key]] = $envLine;
-                $this->components->info("Updated {$key}");
-            } else {
-                // Append new line
-                $lines[] = $envLine;
-                $this->components->info("Added {$key}");
-            }
-        }
-
-        File::put($envPath, implode("\n", $lines));
-    }
-
-    private function formatEnvValue(string $value): string
-    {
-        // Never allow multi-line .env injection.
-        $value = str_replace(["\r\n", "\r", "\n"], '\\n', $value);
-
-        // Always quote to avoid parsing surprises and variable expansion.
-        $escaped = str_replace('\\', '\\\\', $value);
-        $escaped = str_replace('"', '\\"', $escaped);
-        $escaped = str_replace('$', '\\$', $escaped);
-
-        return '"' . $escaped . '"';
+        UpsertEnvVariablesAction::run(
+            updates: $updates,
+            force: (bool) $this->option('force'),
+            warn: function (string $message): void {
+                $this->components->warn($message);
+            },
+            info: function (string $message): void {
+                $this->components->info($message);
+            },
+        );
     }
 }

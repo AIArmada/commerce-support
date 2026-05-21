@@ -31,15 +31,17 @@ Commerce Support provides health check infrastructure built on `spatie/laravel-h
 
 ### Extend Base Class
 
+`CommerceHealthCheck` owns the final `run()` method and converts thrown exceptions into failed results. Concrete checks should implement `performCheck()`.
+
 ```php
 use AIArmada\CommerceSupport\Health\CommerceHealthCheck;
-use Spatie\Health\Result;
+use Spatie\Health\Checks\Result;
 
 class CartHealthCheck extends CommerceHealthCheck
 {
-    protected string $label = 'Cart System';
+    public ?string $name = 'Cart System';
 
-    public function run(): Result
+    protected function performCheck(): Result
     {
         // Check abandoned cart count
         $abandonedCount = Cart::where('status', 'abandoned')
@@ -68,6 +70,7 @@ For models that need health monitoring:
 
 ```php
 use AIArmada\CommerceSupport\Contracts\HasHealthCheck;
+use Spatie\Health\Checks\Result;
 
 class PaymentGateway implements HasHealthCheck
 {
@@ -137,9 +140,9 @@ public function boot(): void
 ```php
 class InventoryHealthCheck extends CommerceHealthCheck
 {
-    protected string $label = 'Inventory System';
+    public ?string $name = 'Inventory System';
 
-    public function run(): Result
+    protected function performCheck(): Result
     {
         $lowStockCount = StockLevel::where('quantity', '<=', 5)
             ->where('quantity', '>', 0)
@@ -168,9 +171,9 @@ class InventoryHealthCheck extends CommerceHealthCheck
 ```php
 class PaymentGatewayHealthCheck extends CommerceHealthCheck
 {
-    protected string $label = 'Payment Gateway';
+    public ?string $name = 'Payment Gateway';
 
-    public function run(): Result
+    protected function performCheck(): Result
     {
         $recentFailures = PaymentAttempt::where('status', 'failed')
             ->where('created_at', '>', now()->subHour())
@@ -206,9 +209,9 @@ class PaymentGatewayHealthCheck extends CommerceHealthCheck
 ```php
 class OrderProcessingHealthCheck extends CommerceHealthCheck
 {
-    protected string $label = 'Order Processing';
+    public ?string $name = 'Order Processing';
 
-    public function run(): Result
+    protected function performCheck(): Result
     {
         // Check for stuck orders
         $stuckOrders = Order::where('status', 'processing')
@@ -263,6 +266,7 @@ class AdminPanelProvider extends PanelProvider
 - Color-coded status (green/yellow/red)
 - Auto-refresh capability
 - Click to view details
+- Explicit gate authorization via `commerce-support.health.view_ability`
 
 ### Customizing the Widget
 
@@ -275,7 +279,9 @@ class CommerceHealthWidget extends Widget
 
     public static function canView(): bool
     {
-        return auth()->user()?->can('view_health_checks') ?? false;
+        $ability = config('commerce-support.health.view_ability', 'viewCommerceHealth');
+
+        return auth()->user()?->can($ability) ?? false;
     }
 
     protected function getPollingInterval(): ?string
@@ -283,6 +289,14 @@ class CommerceHealthWidget extends Widget
         return '30s'; // Auto-refresh every 30 seconds
     }
 }
+```
+
+Configure the required ability in `config/commerce-support.php`:
+
+```php
+'health' => [
+    'view_ability' => 'viewCommerceHealth',
+],
 ```
 
 ## HTTP Endpoints

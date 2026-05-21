@@ -19,10 +19,13 @@ enum TargetingRuleType: string
     case CartValue = 'cart_value';
     case CartQuantity = 'cart_quantity';
     case ProductInCart = 'product_in_cart';
+    case ProductQuantity = 'product_quantity';
     case CategoryInCart = 'category_in_cart';
     case Metadata = 'metadata';
     case ItemAttribute = 'item_attribute';
     case ItemConstraint = 'item_constraint';
+    case CouponUsageLimit = 'coupon_usage_limit';
+    case PaymentMethod = 'payment_method';
 
     // Time-based rules
     case TimeWindow = 'time_window';
@@ -34,6 +37,7 @@ enum TargetingRuleType: string
     case Device = 'device';
     case Geographic = 'geographic';
     case Referrer = 'referrer';
+    case ReferralSource = 'referral_source';
     case Currency = 'currency';
 
     /**
@@ -66,10 +70,13 @@ enum TargetingRuleType: string
                 self::CartValue->value => self::CartValue->label(),
                 self::CartQuantity->value => self::CartQuantity->label(),
                 self::ProductInCart->value => self::ProductInCart->label(),
+                self::ProductQuantity->value => self::ProductQuantity->label(),
                 self::CategoryInCart->value => self::CategoryInCart->label(),
                 self::Metadata->value => self::Metadata->label(),
                 self::ItemAttribute->value => self::ItemAttribute->label(),
                 self::ItemConstraint->value => self::ItemConstraint->label(),
+                self::CouponUsageLimit->value => self::CouponUsageLimit->label(),
+                self::PaymentMethod->value => self::PaymentMethod->label(),
             ],
             'Time' => [
                 self::TimeWindow->value => self::TimeWindow->label(),
@@ -81,6 +88,7 @@ enum TargetingRuleType: string
                 self::Device->value => self::Device->label(),
                 self::Geographic->value => self::Geographic->label(),
                 self::Referrer->value => self::Referrer->label(),
+                self::ReferralSource->value => self::ReferralSource->label(),
                 self::Currency->value => self::Currency->label(),
             ],
         ];
@@ -99,10 +107,13 @@ enum TargetingRuleType: string
             self::CartValue => 'Cart Value',
             self::CartQuantity => 'Cart Quantity',
             self::ProductInCart => 'Product in Cart',
+            self::ProductQuantity => 'Product Quantity',
             self::CategoryInCart => 'Category in Cart',
             self::Metadata => 'Cart Metadata',
             self::ItemAttribute => 'Item Attribute',
             self::ItemConstraint => 'Item Constraint',
+            self::CouponUsageLimit => 'Coupon Usage Limit',
+            self::PaymentMethod => 'Payment Method',
             self::TimeWindow => 'Time Window',
             self::DayOfWeek => 'Day of Week',
             self::DateRange => 'Date Range',
@@ -110,6 +121,7 @@ enum TargetingRuleType: string
             self::Device => 'Device',
             self::Geographic => 'Geographic Location',
             self::Referrer => 'Referrer',
+            self::ReferralSource => 'Referral Source',
             self::Currency => 'Currency',
         };
     }
@@ -127,6 +139,15 @@ enum TargetingRuleType: string
                 'not_in' => 'Is not in',
                 'contains_any' => 'Contains any of',
                 'contains_all' => 'Contains all of',
+            ],
+            self::ProductQuantity => [
+                'eq' => 'Equals',
+                'neq' => 'Not equals',
+                'gt' => 'Greater than',
+                'gte' => 'Greater than or equal',
+                'lt' => 'Less than',
+                'lte' => 'Less than or equal',
+                'between' => 'Between',
             ],
             self::CartValue, self::CartQuantity, self::CustomerLifetimeValue, self::ItemConstraint => [
                 '=' => 'Equals',
@@ -162,6 +183,7 @@ enum TargetingRuleType: string
                 'in' => 'Country is in',
                 'not_in' => 'Country is not in',
             ],
+            self::CouponUsageLimit, self::PaymentMethod, self::ReferralSource => [],
             self::UserAttribute, self::ItemAttribute => [
                 '=' => 'Equals',
                 '!=' => 'Not equals',

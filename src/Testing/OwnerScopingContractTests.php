@@ -7,6 +7,7 @@ namespace AIArmada\CommerceSupport\Testing;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use Illuminate\Database\Eloquent\Model;
+use InvalidArgumentException;
 
 /**
  * Contract tests for models using HasOwner trait.
@@ -183,16 +184,25 @@ trait OwnerScopingContractTests
             ->and($model->belongsToOwner($owner))->toBeTrue();
     }
 
-    public function test_remove_owner_makes_model_global(): void
+    public function test_remove_owner_throws_on_persisted_owned_record(): void
     {
         $owner = $this->createOwner();
         $model = $this->createModelForOwner($owner);
 
         expect($model->hasOwner())->toBeTrue();
 
+        expect(fn () => $model->removeOwner())
+            ->toThrow(InvalidArgumentException::class, 'Owner cannot be removed from a persisted');
+    }
+
+    public function test_remove_owner_allowed_on_unsaved_model(): void
+    {
+        $owner = $this->createOwner();
+        $class = $this->getModelClass();
+
+        /** @var Model $model */
+        $model = new $class;
         $model->removeOwner();
-        $model->save();
-        $model->refresh();
 
         expect($model->isGlobal())->toBeTrue();
     }

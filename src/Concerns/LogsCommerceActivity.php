@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Concerns;
 
-use Spatie\Activitylog\LogOptions;
-use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Shared trait for logging commerce activity across all packages.
@@ -14,7 +14,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * spatie/laravel-activitylog with consistent defaults for commerce operations.
  *
  * @example
- * ```php
+        return $this->fillable;
  * use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
  *
  * class Order extends Model
@@ -45,7 +45,7 @@ trait LogsCommerceActivity // @phpstan-ignore trait.unused
         return LogOptions::defaults()
             ->logOnly($this->getLoggableAttributes())
             ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
+            ->dontLogEmptyChanges()
             ->useLogName($this->getActivityLogName());
     }
 
@@ -73,7 +73,7 @@ trait LogsCommerceActivity // @phpstan-ignore trait.unused
      */
     protected function getLoggableAttributes(): array
     {
-        return $this->fillable ?? [];
+        return $this->fillable;
     }
 
     /**

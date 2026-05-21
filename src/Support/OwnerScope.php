@@ -20,6 +20,12 @@ final class OwnerScope implements Scope
 
         $owner = $this->config->owner ?? OwnerContext::resolve();
 
+        OwnerContext::assertResolvedOrExplicitGlobal(
+            $owner,
+            sprintf('%s requires an owner context or explicit global context.', $model::class),
+        );
+
+        /** @var Builder<Model> $builder */
         OwnerQuery::applyToEloquentBuilder(
             $builder,
             $owner,

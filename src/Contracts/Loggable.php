@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Contracts;
 
-use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Interface for models that support activity logging.

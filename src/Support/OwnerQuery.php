@@ -19,7 +19,13 @@ final class OwnerQuery
             return $column;
         }
 
-        return $query->getModel()->qualifyColumn($column);
+        $model = $query->getModel();
+
+        if ($model === null) {
+            return $column;
+        }
+
+        return $model->qualifyColumn($column);
     }
 
     /**

@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Commands;
 
+use AIArmada\CommerceSupport\Actions\EnsureCustomGuidelinesSymlinkAction;
+use AIArmada\CommerceSupport\Actions\ResolveProjectRootAction;
 use Illuminate\Console\Command;
 use ReflectionProperty;
-use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
@@ -22,7 +23,7 @@ final class BoostInstallCommand extends Command
 
     public function handle(): int
     {
-        $projectRoot = $this->getProjectRoot();
+        $projectRoot = ResolveProjectRootAction::run();
         $configPath = $projectRoot . '/boost.json';
 
         if (file_exists($configPath)) {
@@ -48,7 +49,12 @@ final class BoostInstallCommand extends Command
             $this->setApplicationNamespace($appNamespace);
         }
 
-        $this->ensureCustomGuidelinesSymlink($projectRoot);
+        EnsureCustomGuidelinesSymlinkAction::run(
+            projectRoot: $projectRoot,
+            warn: function (string $message): void {
+                $this->components->warn($message);
+            },
+        );
 
         try {
             $exitCode = $this->call('boost:install');
@@ -59,24 +65,6 @@ final class BoostInstallCommand extends Command
         }
 
         return $exitCode === self::SUCCESS ? self::SUCCESS : self::FAILURE;
-    }
-
-    /**
-     * Get the actual project root directory.
-     */
-    private function getProjectRoot(): string
-    {
-        $cwd = getcwd();
-
-        if (is_string($cwd) && file_exists($cwd . '/composer.json')) {
-            return $cwd;
-        }
-
-        if (function_exists('\\Orchestra\\Testbench\\package_path')) {
-            return \Orchestra\Testbench\package_path();
-        }
-
-        return base_path();
     }
 
     private function getAppPath(string $projectRoot): ?string
@@ -125,41 +113,5 @@ final class BoostInstallCommand extends Command
         $property = new ReflectionProperty(app(), 'namespace');
         $property->setAccessible(true);
         $property->setValue(app(), $namespace);
-    }
-
-    /**
-     * Ensure custom guidelines from project root are accessible via symlink.
-     */
-    private function ensureCustomGuidelinesSymlink(string $projectRoot): void
-    {
-        $sourceDir = $projectRoot . '/.ai/guidelines';
-        $targetDir = base_path('.ai');
-        $targetLink = $targetDir . '/guidelines';
-
-        if (! is_dir($sourceDir)) {
-            return;
-        }
-
-        if (is_link($targetLink) && readlink($targetLink) === $sourceDir) {
-            return;
-        }
-
-        if (! is_dir($targetDir) && ! mkdir($targetDir, 0755, true)) {
-            throw new RuntimeException("Failed to create directory: {$targetDir}");
-        }
-
-        if (is_link($targetLink)) {
-            if (! unlink($targetLink)) {
-                throw new RuntimeException("Failed to remove existing symlink: {$targetLink}");
-            }
-        } elseif (file_exists($targetLink)) {
-            $this->components->warn("Skipping symlink creation; a real path already exists at: {$targetLink}");
-
-            return;
-        }
-
-        if (! symlink($sourceDir, $targetLink)) {
-            throw new RuntimeException("Failed to create symlink: {$targetLink}");
-        }
     }
 }

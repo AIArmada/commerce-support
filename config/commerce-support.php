@@ -16,10 +16,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Defaults
+    |--------------------------------------------------------------------------
+    */
+    'currency' => [
+        'default' => env('COMMERCE_DEFAULT_CURRENCY', 'MYR'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Features
     |--------------------------------------------------------------------------
     */
     'owner' => [
+        'enabled' => env('COMMERCE_OWNER_ENABLED', false),
         'resolver' => env('COMMERCE_OWNER_RESOLVER', NullOwnerResolver::class),
+    ],
+
+    'health' => [
+        'view_ability' => 'viewCommerceHealth',
     ],
 ];

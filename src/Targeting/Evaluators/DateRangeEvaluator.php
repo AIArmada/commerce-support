@@ -7,6 +7,7 @@ namespace AIArmada\CommerceSupport\Targeting\Evaluators;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingContextInterface;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingRuleEvaluator;
 use AIArmada\CommerceSupport\Targeting\Enums\TargetingRuleType;
+use AIArmada\CommerceSupport\Targeting\Exceptions\TargetingRuleEvaluationException;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Throwable;
@@ -34,8 +35,14 @@ class DateRangeEvaluator implements TargetingRuleEvaluator
                 'after' => $this->evaluateAfter($rule, $now),
                 default => false,
             };
-        } catch (Throwable) {
-            return true;
+        } catch (TargetingRuleEvaluationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            throw TargetingRuleEvaluationException::forRule(
+                TargetingRuleType::DateRange->value,
+                'unexpected runtime error',
+                $exception,
+            );
         }
     }
 
@@ -74,12 +81,8 @@ class DateRangeEvaluator implements TargetingRuleEvaluator
      */
     private function evaluateBetween(array $rule, Carbon $now): bool
     {
-        $startDate = $this->parseDate($rule['start'] ?? $rule['start_date'] ?? null);
-        $endDate = $this->parseDate($rule['end'] ?? $rule['end_date'] ?? null);
-
-        if ($startDate === null || $endDate === null) {
-            return true;
-        }
+        $startDate = $this->parseDate($rule['start'] ?? $rule['start_date'] ?? null, 'start');
+        $endDate = $this->parseDate($rule['end'] ?? $rule['end_date'] ?? null, 'end');
 
         return $now->betweenIncluded($startDate, $endDate);
     }
@@ -89,11 +92,7 @@ class DateRangeEvaluator implements TargetingRuleEvaluator
      */
     private function evaluateBefore(array $rule, Carbon $now): bool
     {
-        $date = $this->parseDate($rule['date'] ?? $rule['end'] ?? $rule['end_date'] ?? null);
-
-        if ($date === null) {
-            return true;
-        }
+        $date = $this->parseDate($rule['date'] ?? $rule['end'] ?? $rule['end_date'] ?? null, 'date');
 
         return $now->lessThan($date);
     }
@@ -103,25 +102,28 @@ class DateRangeEvaluator implements TargetingRuleEvaluator
      */
     private function evaluateAfter(array $rule, Carbon $now): bool
     {
-        $date = $this->parseDate($rule['date'] ?? $rule['start'] ?? $rule['start_date'] ?? null);
-
-        if ($date === null) {
-            return true;
-        }
+        $date = $this->parseDate($rule['date'] ?? $rule['start'] ?? $rule['start_date'] ?? null, 'date');
 
         return $now->greaterThan($date);
     }
 
-    private function parseDate(mixed $date): ?CarbonImmutable
+    private function parseDate(mixed $date, string $field): CarbonImmutable
     {
         if ($date === null) {
-            return null;
+            throw TargetingRuleEvaluationException::forRule(
+                TargetingRuleType::DateRange->value,
+                sprintf('missing required date field "%s"', $field),
+            );
         }
 
         try {
             return CarbonImmutable::parse($date);
-        } catch (Throwable) {
-            return null;
+        } catch (Throwable $exception) {
+            throw TargetingRuleEvaluationException::forRule(
+                TargetingRuleType::DateRange->value,
+                sprintf('invalid "%s" value "%s"', $field, is_scalar($date) ? (string) $date : get_debug_type($date)),
+                $exception,
+            );
         }
     }
 }

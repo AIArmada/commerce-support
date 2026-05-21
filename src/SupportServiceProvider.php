@@ -5,16 +5,21 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport;
 
 use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
+use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingEngine;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
-use Laravel\Octane\Events\RequestReceived;
+use OwenIt\Auditing\AuditingServiceProvider;
+use ReflectionClass;
+use RuntimeException;
+use Spatie\Activitylog\ActivitylogServiceProvider;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Spatie\LaravelSettings\LaravelSettingsServiceProvider;
+use Spatie\MediaLibrary\MediaLibraryServiceProvider;
+use Spatie\Tags\TagsServiceProvider;
 
 /**
  * Support Service Provider
@@ -47,16 +52,105 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     public function bootingPackage(): void
     {
+        $this->loadDependencyMigrations();
         $this->validateMorphKeyType();
-        $this->warnAboutNullOwnerResolver();
+        $this->ensureOwnerResolverIsConfiguredWhenOwnerModeEnabled();
+    }
 
-        // Commerce Support - Octane Compatibility
-        // Ensure static state is cleared between requests
-        if (class_exists(RequestReceived::class)) {
-            $this->app['events']->listen(RequestReceived::class, function (): void {
-                OwnerContext::clearOverride();
-            });
+    private function loadDependencyMigrations(): void
+    {
+        $settingsMigrationPath = $this->resolveDependencyPath(
+            LaravelSettingsServiceProvider::class,
+            'database/migrations/create_settings_table.php.stub',
+            'vendor/spatie/laravel-settings/database/migrations/create_settings_table.php.stub'
+        );
+
+        if ($settingsMigrationPath !== null) {
+            ConditionalMigrationLoader::loadFileIfMissing(
+                $this,
+                $settingsMigrationPath
+            );
         }
+
+        $auditsMigrationPath = $this->resolveDependencyPath(
+            AuditingServiceProvider::class,
+            'database/migrations/audits.stub',
+            'vendor/owen-it/laravel-auditing/database/migrations/audits.stub'
+        );
+
+        if ($auditsMigrationPath !== null) {
+            ConditionalMigrationLoader::loadFileIfMissing(
+                $this,
+                $auditsMigrationPath,
+                'create_audits_table'
+            );
+        }
+
+        $activityLogMigrationsPath = $this->resolveDependencyPath(
+            ActivitylogServiceProvider::class,
+            'database/migrations',
+            'vendor/spatie/laravel-activitylog/database/migrations'
+        );
+
+        if ($activityLogMigrationsPath !== null) {
+            ConditionalMigrationLoader::loadDirectoryIfMissing(
+                $this,
+                $activityLogMigrationsPath
+            );
+        }
+
+        $tagsMigrationPath = $this->resolveDependencyPath(
+            TagsServiceProvider::class,
+            'database/migrations/create_tag_tables.php.stub',
+            'vendor/spatie/laravel-tags/database/migrations/create_tag_tables.php.stub'
+        );
+
+        if ($tagsMigrationPath !== null) {
+            ConditionalMigrationLoader::loadFileIfMissing(
+                $this,
+                $tagsMigrationPath
+            );
+        }
+
+        $mediaMigrationPath = $this->resolveDependencyPath(
+            MediaLibraryServiceProvider::class,
+            'database/migrations/create_media_table.php.stub',
+            'vendor/spatie/laravel-medialibrary/database/migrations/create_media_table.php.stub'
+        );
+
+        if ($mediaMigrationPath !== null) {
+            ConditionalMigrationLoader::loadFileIfMissing(
+                $this,
+                $mediaMigrationPath
+            );
+        }
+    }
+
+    private function resolveDependencyPath(
+        string $providerClass,
+        string $relativePath,
+        string $fallbackBasePath
+    ): ?string {
+        if (class_exists($providerClass)) {
+            $providerFile = (new ReflectionClass($providerClass))->getFileName();
+
+            if (is_string($providerFile) && $providerFile !== '') {
+                $packageRoot = dirname($providerFile, 2);
+                $resolved = $packageRoot . '/' . mb_ltrim($relativePath, '/');
+
+                if (is_file($resolved) || is_dir($resolved)) {
+                    return $resolved;
+                }
+            }
+        }
+
+        $fallback = base_path($fallbackBasePath);
+
+        if (is_file($fallback) || is_dir($fallback)) {
+            return $fallback;
+        }
+
+        return null;
     }
 
     private function validateMorphKeyType(): void
@@ -73,43 +167,32 @@ final class SupportServiceProvider extends PackageServiceProvider
     }
 
     /**
-     * Warn developers when using NullOwnerResolver with owner mode enabled.
+     * Ensure owner mode is not enabled with the no-op resolver.
      *
      * NullOwnerResolver always returns null for the current owner, which means:
      * - Multi-tenancy is effectively disabled
      * - All data is treated as "global" (no tenant isolation)
      * - Owner scopes will not filter data
-     *
-     * This is fine for single-tenant applications, but dangerous if you expect
-     * multi-tenant behavior. The warning helps catch configuration mistakes.
      */
-    private function warnAboutNullOwnerResolver(): void
+    private function ensureOwnerResolverIsConfiguredWhenOwnerModeEnabled(): void
     {
-        $resolverClass = (string) config('commerce-support.owner.resolver', NullOwnerResolver::class);
         $ownerModeEnabled = (bool) config('commerce-support.owner.enabled', false);
-
-        if ($resolverClass !== NullOwnerResolver::class && ! is_a($resolverClass, NullOwnerResolver::class, true)) {
-            return;
-        }
 
         if (! $ownerModeEnabled) {
             return;
         }
 
-        if ($this->app->runningUnitTests()) {
-            return;
+        if (! $this->app->bound(OwnerResolverInterface::class)) {
+            throw new RuntimeException('OwnerResolverInterface must be bound when commerce-support owner mode is enabled.');
         }
 
-        $message = sprintf(
-            '[commerce-support] NullOwnerResolver is configured but owner mode is enabled (commerce-support.owner.enabled=true). ' .
-            'This means multi-tenancy is NOT enforced. To enable multi-tenancy, configure a real owner resolver: ' .
-            'config/commerce-support.php -> owner.resolver = YourOwnerResolver::class'
-        );
+        $resolver = $this->app->make(OwnerResolverInterface::class);
 
-        if ($this->app->isProduction()) {
-            Log::warning($message);
-        } else {
-            Log::debug($message);
+        if ($resolver instanceof NullOwnerResolver) {
+            throw new RuntimeException(
+                'NullOwnerResolver is configured while commerce-support owner mode is enabled. ' .
+                'Configure commerce-support.owner.resolver with a resolver that implements ' . OwnerResolverInterface::class . '.'
+            );
         }
     }
 

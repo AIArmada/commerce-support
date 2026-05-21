@@ -35,6 +35,7 @@ trait HasOwnerScopeConfig // @phpstan-ignore trait.unused
         $key = (string) self::readOptionalStaticProperty('ownerScopeConfigKey', '');
         $enabledByDefault = (bool) self::readOptionalStaticProperty('ownerScopeEnabledByDefault', false);
         $includeGlobalByDefault = (bool) self::readOptionalStaticProperty('ownerScopeIncludeGlobalByDefault', false);
+        $autoAssignOnCreateByDefault = (bool) self::readOptionalStaticProperty('ownerScopeAutoAssignOnCreateByDefault', true);
         $ownerTypeColumn = (string) self::readOptionalStaticProperty('ownerScopeOwnerTypeColumn', 'owner_type');
         $ownerIdColumn = (string) self::readOptionalStaticProperty('ownerScopeOwnerIdColumn', 'owner_id');
 
@@ -45,6 +46,7 @@ trait HasOwnerScopeConfig // @phpstan-ignore trait.unused
                 owner: null,
                 ownerTypeColumn: $ownerTypeColumn,
                 ownerIdColumn: $ownerIdColumn,
+                autoAssignOnCreate: $autoAssignOnCreateByDefault,
             );
         }
 
@@ -55,6 +57,7 @@ trait HasOwnerScopeConfig // @phpstan-ignore trait.unused
             null,
             $ownerTypeColumn,
             $ownerIdColumn,
+            $autoAssignOnCreateByDefault,
         );
     }
 }

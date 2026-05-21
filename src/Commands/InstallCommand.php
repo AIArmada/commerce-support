@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Commands;
 
+use AIArmada\CommerceSupport\Actions\DiscoverCommercePublishTagsAction;
 use Illuminate\Console\Command;
 use Illuminate\Support\Arr;
-use Illuminate\Support\ServiceProvider;
 
 final class InstallCommand extends Command
 {
@@ -84,57 +84,7 @@ final class InstallCommand extends Command
      */
     private function publishTagsByProvider(bool $includeConfig): array
     {
-        $allowedSuffixes = ['-migrations'];
-
-        if ($includeConfig) {
-            $allowedSuffixes[] = '-config';
-        }
-
-        $candidateTags = array_values(array_filter(
-            ServiceProvider::publishableGroups(),
-            static function (string $group) use ($allowedSuffixes): bool {
-                foreach ($allowedSuffixes as $suffix) {
-                    if (str_ends_with($group, $suffix)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-        ));
-
-        if ($candidateTags === []) {
-            return [];
-        }
-
-        /** @var array<int, class-string> $providers */
-        $providers = ServiceProvider::publishableProviders();
-
-        $result = [];
-
-        foreach ($providers as $providerClass) {
-            if (! str_starts_with($providerClass, 'AIArmada\\')) {
-                continue;
-            }
-
-            $tagsForProvider = [];
-
-            foreach ($candidateTags as $tag) {
-                $paths = ServiceProvider::pathsToPublish($providerClass, $tag);
-
-                if ($paths !== []) {
-                    $tagsForProvider[] = $tag;
-                }
-            }
-
-            if ($tagsForProvider !== []) {
-                $result[$providerClass] = array_values(array_unique($tagsForProvider));
-            }
-        }
-
-        ksort($result);
-
-        return $result;
+        return DiscoverCommercePublishTagsAction::run(includeConfig: $includeConfig);
     }
 
     /**
