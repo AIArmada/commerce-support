@@ -7,7 +7,7 @@ title: Installation
 ## Requirements
 
 - PHP 8.4+
-- Laravel 12+
+- Laravel 13+
 - One of: MySQL 8+, PostgreSQL 13+, SQLite 3.38+
 
 ## Composer Installation
@@ -34,6 +34,12 @@ COMMERCE_MORPH_KEY_TYPE=uuid
 
 # JSON column type (json or jsonb for PostgreSQL)
 COMMERCE_JSON_COLUMN_TYPE=json
+
+# Default currency used by shared money helpers
+COMMERCE_DEFAULT_CURRENCY=MYR
+
+# Enable fail-closed owner resolver enforcement for owner-aware apps
+COMMERCE_OWNER_ENABLED=false
 
 # Owner resolver class (for multi-tenancy)
 COMMERCE_OWNER_RESOLVER=App\Support\TenantOwnerResolver
@@ -79,10 +85,10 @@ Register in config:
 ## Verify Installation
 
 ```bash
-php artisan about
+php artisan list
 ```
 
-Look for "AIArmada Commerce Support" in the output.
+Confirm that `commerce:install` and `commerce:setup` appear in the Artisan command list.
 
 ## Interactive Setup
 

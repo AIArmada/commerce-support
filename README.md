@@ -40,9 +40,11 @@ See the [docs](docs/) folder for detailed documentation:
 
 - [Overview](docs/01-overview.md) - Package capabilities and architecture
 - [Configuration](docs/03-configuration.md) - Config keys and defaults
+- [Usage](docs/04-usage.md) - Choose the right support primitive or foundation guide by task
 - [Multi-tenancy](docs/04-multi-tenancy.md) - Owner scoping model and safety rules
 - [Traits & Utilities](docs/10-traits-utilities.md) - Shared traits and helper utilities
 - [Isolation Primitives](docs/11-isolation-primitives.md) - Owner-scoped cache/filesystem/job helpers
+- [Troubleshooting](docs/99-troubleshooting.md) - Common owner-scoping, webhook, and helper issues
 
 ## Quick Start
 

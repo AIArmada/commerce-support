@@ -114,11 +114,7 @@ readonly class TargetingContext implements TargetingContextInterface
             return null;
         }
 
-        if (method_exists($this->user, 'getAttribute')) {
-            return $this->user->getAttribute($attribute);
-        }
-
-        return $this->user->{$attribute} ?? null;
+        return $this->user->getAttribute($attribute);
     }
 
     public function isFirstPurchase(): bool

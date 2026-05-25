@@ -6,6 +6,8 @@ title: Webhooks
 
 Commerce Support provides base classes for secure webhook handling, built on `spatie/laravel-webhook-client`. These utilities ensure consistent signature validation, idempotent processing, and proper error handling across all commerce packages.
 
+Some gateways use HMAC/shared secrets, while others use asymmetric public-key verification. For example, CHIP Collect webhook signatures are verified with gateway-managed public keys, not a merchant-provided shared secret.
+
 ## Architecture
 
 ```
@@ -39,13 +41,13 @@ Commerce Support provides base classes for secure webhook handling, built on `sp
 return [
     'configs' => [
         [
-            'name' => 'chip',
-            'signing_secret' => env('CHIP_WEBHOOK_SECRET'),
+            'name' => 'payment-gateway',
+            'signing_secret' => env('PAYMENT_WEBHOOK_SECRET'),
             'signature_header_name' => 'X-Signature',
-            'signature_validator' => \App\Webhooks\ChipSignatureValidator::class,
+            'signature_validator' => \App\Webhooks\PaymentGatewaySignatureValidator::class,
             'webhook_profile' => \AIArmada\CommerceSupport\Webhooks\CommerceWebhookProfile::class,
             'webhook_model' => \Spatie\WebhookClient\Models\WebhookCall::class,
-            'process_webhook_job' => \App\Jobs\ProcessChipWebhook::class,
+            'process_webhook_job' => \App\Jobs\ProcessPaymentWebhook::class,
         ],
     ],
 ];
@@ -56,7 +58,7 @@ return [
 ```php
 use AIArmada\CommerceSupport\Webhooks\CommerceWebhookProcessor;
 
-class ProcessChipWebhook extends CommerceWebhookProcessor
+class ProcessPaymentWebhook extends CommerceWebhookProcessor
 {
     protected function processEvent(string $eventType, array $payload): void
     {
@@ -83,19 +85,19 @@ class ProcessChipWebhook extends CommerceWebhookProcessor
 
 ```php
 // routes/web.php
-Route::webhooks('webhooks/chip', 'chip');
+Route::webhooks('webhooks/payment-gateway', 'payment-gateway');
 ```
 
 ## Signature Validation
 
 ### CommerceSignatureValidator
 
-`CommerceSignatureValidator` is an abstract HMAC base. Create a concrete gateway validator that defines the signature header:
+`CommerceSignatureValidator` is an abstract HMAC base. Create a concrete gateway validator that defines the signature header when your provider uses shared-secret signing:
 
 ```php
 use AIArmada\CommerceSupport\Webhooks\CommerceSignatureValidator;
 
-class ChipSignatureValidator extends CommerceSignatureValidator
+class PaymentGatewaySignatureValidator extends CommerceSignatureValidator
 {
     protected function getSignatureHeader(): string
     {
@@ -105,6 +107,8 @@ class ChipSignatureValidator extends CommerceSignatureValidator
 ```
 
 The base validator rejects missing signatures, invalid signatures, and empty signing secrets. It signs the raw request body with HMAC-SHA256 by default and compares with `hash_equals()`.
+
+For gateways with asymmetric signatures, provide a package-specific validator instead of extending `CommerceSignatureValidator`.
 
 ### Custom Validator
 
@@ -314,14 +318,14 @@ it('processes payment completed webhook', function () {
     ];
 
     $webhookCall = WebhookCall::create([
-        'name' => 'chip',
-        'url' => 'https://example.test/webhooks/chip',
+        'name' => 'payment-gateway',
+        'url' => 'https://example.test/webhooks/payment-gateway',
         'headers' => [],
         'payload' => $payload,
         'exception' => null,
     ]);
 
-    $job = new ProcessChipWebhook($webhookCall);
+    $job = new ProcessPaymentWebhook($webhookCall);
     $job->handle();
 
     expect(Order::where('payment_id', 'pi_123')->first())
@@ -330,6 +334,8 @@ it('processes payment completed webhook', function () {
 ```
 
 ### Testing Signature Validation
+
+For HMAC-based validators:
 
 ```php
 it('validates webhook signature', function () {
@@ -341,7 +347,7 @@ it('validates webhook signature', function () {
         ->withHeaders([
             'X-Signature' => $signature,
         ])
-        ->postJson('/webhooks/chip', json_decode($payload, true));
+        ->postJson('/webhooks/payment-gateway', json_decode($payload, true));
 
     $response->assertOk();
 });
@@ -351,11 +357,13 @@ it('rejects invalid signature', function () {
         ->withHeaders([
             'X-Signature' => 'invalid',
         ])
-        ->postJson('/webhooks/chip', ['event' => 'test']);
+        ->postJson('/webhooks/payment-gateway', ['event' => 'test']);
 
     $response->assertStatus(500);
 });
 ```
+
+For public-key or provider-specific schemes such as CHIP Collect, test against the gateway's real validator contract instead of generating an HMAC signature.
 
 ## Best Practices
 

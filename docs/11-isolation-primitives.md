@@ -18,6 +18,7 @@ The main primitives are:
 4. **`OwnerIdentificationMiddleware`** — Base middleware for tenant identification
 5. **`NeedsOwner`** — Middleware to enforce owner context on tenant-required routes
 6. **`OwnerTuple` utilities** — Shared owner tuple column and parsing helpers for raw rows/payloads
+7. **`SetExplicitGlobalOwnerContext`** — Middleware for routes that intentionally need explicit global owner context
 
 All owner-taking helpers accept either:
 
@@ -371,6 +372,27 @@ Route::middleware([
 When no owner is resolved, the middleware dispatches `OwnerNotResolvedForRequestEvent` and throws `NoCurrentOwnerException`.
 
 Keep global/admin/public routes outside this middleware when owner context is intentionally optional.
+
+## SetExplicitGlobalOwnerContext
+
+Use `SetExplicitGlobalOwnerContext` on request surfaces that should operate inside **explicit global** context rather than resolving a tenant owner.
+
+```php
+use AIArmada\CommerceSupport\Middleware\SetExplicitGlobalOwnerContext;
+
+Route::middleware([
+    SetExplicitGlobalOwnerContext::class,
+])->group(function (): void {
+    Route::get('/public-checkout', PublicCheckoutController::class);
+});
+```
+
+This is different from simply having no owner resolver result:
+
+- **missing owner** means a tenant boundary was expected but not resolved
+- **explicit global** means the request intentionally targets ownerless rows
+
+`SetExplicitGlobalOwnerContext` is the shared way to express that intent for public/storefront entrypoints, referral pages, and other global-only surfaces.
 
 ## Owner Lifecycle Events
 

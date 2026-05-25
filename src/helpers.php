@@ -12,12 +12,12 @@ if (! function_exists('commerce_json_column_type')) {
      */
     function commerce_json_column_type(?string $packageKey = null, string $default = 'json'): string
     {
-        $global = env('COMMERCE_JSON_COLUMN_TYPE');
+        $global = getenv('COMMERCE_JSON_COLUMN_TYPE');
 
         if ($packageKey !== null) {
             $normalizedPackageKey = str_replace('-', '_', $packageKey);
             $envKey = mb_strtoupper($normalizedPackageKey) . '_JSON_COLUMN_TYPE';
-            $packageSpecific = env($envKey);
+            $packageSpecific = getenv($envKey);
 
             if (is_string($packageSpecific) && $packageSpecific !== '') {
                 return $packageSpecific;
@@ -34,7 +34,7 @@ if (! function_exists('commerce_json_column_type')) {
 
 if (! function_exists('commerce_csrf_middleware')) {
     /**
-     * Resolve the framework CSRF middleware across Laravel 12 and 13.
+     * Resolve the framework CSRF middleware across the supported framework variants.
      *
      * @return class-string
      */

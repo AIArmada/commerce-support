@@ -40,7 +40,7 @@ class TenantOwnerResolver implements OwnerResolverInterface
 
 ```php
 // Check config
-dd(config('package.owner.enabled')); // Should be true
+dd(config('commerce-support.owner.enabled')); // Should be true
 ```
 
 **Cause 3:** Model missing trait.

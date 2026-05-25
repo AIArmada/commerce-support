@@ -162,11 +162,7 @@ final readonly class ReferralSourceEvaluator implements TargetingRuleEvaluator
             return $context->getUtmSource();
         }
 
-        if (method_exists($context, 'getMetadata')) {
-            return $context->getMetadata('utm_source');
-        }
-
-        return null;
+        return $context->getMetadata('utm_source');
     }
 
     private function getUtmMedium(TargetingContextInterface $context): ?string
@@ -175,11 +171,7 @@ final readonly class ReferralSourceEvaluator implements TargetingRuleEvaluator
             return $context->getUtmMedium();
         }
 
-        if (method_exists($context, 'getMetadata')) {
-            return $context->getMetadata('utm_medium');
-        }
-
-        return null;
+        return $context->getMetadata('utm_medium');
     }
 
     private function getUtmCampaign(TargetingContextInterface $context): ?string
@@ -188,20 +180,12 @@ final readonly class ReferralSourceEvaluator implements TargetingRuleEvaluator
             return $context->getUtmCampaign();
         }
 
-        if (method_exists($context, 'getMetadata')) {
-            return $context->getMetadata('utm_campaign');
-        }
-
-        return null;
+        return $context->getMetadata('utm_campaign');
     }
 
     private function getReferrer(TargetingContextInterface $context): ?string
     {
-        if (method_exists($context, 'getReferrer')) {
-            return $context->getReferrer();
-        }
-
-        return null;
+        return $context->getReferrer();
     }
 
     private function getSource(TargetingContextInterface $context): ?string
@@ -213,12 +197,8 @@ final readonly class ReferralSourceEvaluator implements TargetingRuleEvaluator
         }
 
         // Check metadata for generic source
-        if (method_exists($context, 'getMetadata')) {
-            return $context->getMetadata('source')
-                ?? $context->getMetadata('traffic_source')
-                ?? $context->getMetadata('referral_source');
-        }
-
-        return null;
+        return $context->getMetadata('source')
+            ?? $context->getMetadata('traffic_source')
+            ?? $context->getMetadata('referral_source');
     }
 }

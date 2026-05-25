@@ -81,10 +81,6 @@ final readonly class PaymentMethodEvaluator implements TargetingRuleEvaluator
         }
 
         // Check metadata
-        if (method_exists($context, 'getMetadata')) {
-            return $context->getMetadata('payment_method');
-        }
-
-        return null;
+        return $context->getMetadata('payment_method');
     }
 }

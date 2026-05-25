@@ -67,11 +67,21 @@ final class BoostUpdateCommand extends Command
             return self::FAILURE;
         }
 
-        $agentNames = $config['agents'] ?? [];
-        $guidelineNames = $config['packages'] ?? [];
+        $agentNames = array_values(array_filter(
+            is_array($config['agents'] ?? null) ? $config['agents'] : [],
+            static fn (mixed $name): bool => is_string($name) && $name !== '',
+        ));
+
+        $guidelineNames = array_values(array_filter(
+            is_array($config['packages'] ?? null) ? $config['packages'] : [],
+            static fn (mixed $name): bool => is_string($name) && $name !== '',
+        ));
 
         if (isset($config['guidelines']) && is_array($config['guidelines'])) {
-            $guidelineNames = $config['guidelines'];
+            $guidelineNames = array_values(array_filter(
+                $config['guidelines'],
+                static fn (mixed $name): bool => is_string($name) && $name !== '',
+            ));
         }
 
         if (empty($agentNames)) {

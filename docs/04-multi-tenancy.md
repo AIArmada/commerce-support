@@ -86,6 +86,24 @@ OwnerContext::withOwner(null, function (): void {
 
 `OwnerContext::setForRequest()` is reserved for HTTP/framework integration points and throws outside an active request.
 
+### Explicit global request middleware
+
+Some HTTP entrypoints intentionally work against global rows instead of a tenant owner — for example public storefront routes, referral landing pages, or admin surfaces that need ownerless setup data.
+
+Use `SetExplicitGlobalOwnerContext` for those routes:
+
+```php
+use AIArmada\CommerceSupport\Middleware\SetExplicitGlobalOwnerContext;
+
+Route::middleware([
+    SetExplicitGlobalOwnerContext::class,
+])->group(function (): void {
+    Route::get('/pricing', PricingPageController::class);
+});
+```
+
+`SetExplicitGlobalOwnerContext` extends `OwnerIdentificationMiddleware` and resolves the request owner to `null` deliberately, which enters **explicit global** context rather than “missing owner” state. Use it only when ownerless data access is intentional.
+
 ## Model integration
 
 Apply owner scoping to tenant-owned models with `HasOwner` and `HasOwnerScopeConfig`.

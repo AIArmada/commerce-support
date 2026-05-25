@@ -29,20 +29,12 @@ trait HasOwnerScopeKey // @phpstan-ignore trait.unused
 
     protected static function ownerTypeColumnName(): string
     {
-        if (method_exists(static::class, 'resolveOwnerScopeConfig')) {
-            return static::resolveOwnerScopeConfig()->ownerTypeColumn;
-        }
-
-        return 'owner_type';
+        return static::resolveOwnerScopeConfig()->ownerTypeColumn;
     }
 
     protected static function ownerIdColumnName(): string
     {
-        if (method_exists(static::class, 'resolveOwnerScopeConfig')) {
-            return static::resolveOwnerScopeConfig()->ownerIdColumn;
-        }
-
-        return 'owner_id';
+        return static::resolveOwnerScopeConfig()->ownerIdColumn;
     }
 
     protected static function readOwnerScopeKeyAttribute(Model $model, string $column): int | string | null

@@ -53,22 +53,18 @@ final class ResolveOwnerJobContextAction
                     }
                 }
 
-                if (method_exists($value, 'getAttribute')) {
-                    $modelOwnerType = $value->getAttribute('owner_type');
-                    $modelOwnerId = $value->getAttribute('owner_id');
+                $modelOwnerType = $value->getAttribute('owner_type');
+                $modelOwnerId = $value->getAttribute('owner_id');
 
-                    if (is_string($modelOwnerType) && $modelOwnerType !== '' && (is_string($modelOwnerId) || is_int($modelOwnerId))) {
-                        return new OwnerJobContext(
-                            ownerType: $modelOwnerType,
-                            ownerId: $modelOwnerId,
-                            ownerIsGlobal: false,
-                        );
-                    }
+                if (is_string($modelOwnerType) && $modelOwnerType !== '' && (is_string($modelOwnerId) || is_int($modelOwnerId))) {
+                    return new OwnerJobContext(
+                        ownerType: $modelOwnerType,
+                        ownerId: $modelOwnerId,
+                        ownerIsGlobal: false,
+                    );
                 }
 
-                if (method_exists($value, 'getMorphClass')) {
-                    return OwnerJobContext::fromOwnerModel($value);
-                }
+                return OwnerJobContext::fromOwnerModel($value);
             }
         }
 

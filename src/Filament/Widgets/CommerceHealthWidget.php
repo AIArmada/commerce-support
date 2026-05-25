@@ -21,6 +21,7 @@ use Throwable;
  */
 class CommerceHealthWidget extends Widget
 {
+    /** @var view-string */
     protected string $view = 'commerce-support::widgets.health-status';
 
     protected static ?int $sort = 1;

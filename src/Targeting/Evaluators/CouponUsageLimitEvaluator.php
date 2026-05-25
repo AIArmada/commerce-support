@@ -68,8 +68,10 @@ final readonly class CouponUsageLimitEvaluator implements TargetingRuleEvaluator
             return $context->getCouponCode();
         }
 
-        if (method_exists($context, 'getMetadata')) {
-            return $context->getMetadata('coupon_code');
+        $couponCode = $context->getMetadata('coupon_code');
+
+        if ($couponCode !== null) {
+            return $couponCode;
         }
 
         if (method_exists($context, 'getCartMetadata')) {
@@ -89,19 +91,15 @@ final readonly class CouponUsageLimitEvaluator implements TargetingRuleEvaluator
         // Check metadata
         $usageKey = "coupon_usage_{$couponCode}";
 
-        if (method_exists($context, 'getMetadata')) {
-            $usage = $context->getMetadata($usageKey);
-            if ($usage !== null) {
-                return (int) $usage;
-            }
+        $usage = $context->getMetadata($usageKey);
+        if ($usage !== null) {
+            return (int) $usage;
         }
 
         // Check user attribute
-        if (method_exists($context, 'getUserAttribute')) {
-            $usage = $context->getUserAttribute($usageKey);
-            if ($usage !== null) {
-                return (int) $usage;
-            }
+        $usage = $context->getUserAttribute($usageKey);
+        if ($usage !== null) {
+            return (int) $usage;
         }
 
         return 0;
