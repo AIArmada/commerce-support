@@ -65,24 +65,35 @@ final class SupportServiceProvider extends PackageServiceProvider
             'vendor/spatie/laravel-settings/database/migrations/create_settings_table.php.stub'
         );
 
-        if ($settingsMigrationPath !== null) {
+        if ($settingsMigrationPath !== null && ! $this->tableExists('settings')) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
                 $settingsMigrationPath
             );
         }
 
-        $auditsMigrationPath = $this->resolveDependencyPath(
-            AuditingServiceProvider::class,
-            'database/migrations/audits.stub',
-            'vendor/owen-it/laravel-auditing/database/migrations/audits.stub'
-        );
+        $auditsMigrationPath = $this->resolveCommerceSupportAuditMigrationPath()
+            ?? $this->resolveDependencyPath(
+                AuditingServiceProvider::class,
+                'database/migrations/audits.stub',
+                'vendor/owen-it/laravel-auditing/database/migrations/audits.stub'
+            );
 
-        if ($auditsMigrationPath !== null) {
+        if ($auditsMigrationPath !== null && ! $this->auditTableExists()) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
                 $auditsMigrationPath,
                 'create_audits_table'
+            );
+        }
+
+        $auditsUserActorFixPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000003_fix_audits_user_actor_column_type.php.stub';
+
+        if (is_file($auditsUserActorFixPath)) {
+            ConditionalMigrationLoader::loadFileIfMissing(
+                $this,
+                $auditsUserActorFixPath,
+                'fix_audits_user_actor_column_type'
             );
         }
 
@@ -92,7 +103,7 @@ final class SupportServiceProvider extends PackageServiceProvider
             'vendor/spatie/laravel-activitylog/database/migrations'
         );
 
-        if ($activityLogMigrationsPath !== null) {
+        if ($activityLogMigrationsPath !== null && ! $this->tableExists('activity_log')) {
             ConditionalMigrationLoader::loadDirectoryIfMissing(
                 $this,
                 $activityLogMigrationsPath
@@ -105,7 +116,7 @@ final class SupportServiceProvider extends PackageServiceProvider
             'vendor/spatie/laravel-tags/database/migrations/create_tag_tables.php.stub'
         );
 
-        if ($tagsMigrationPath !== null) {
+        if ($tagsMigrationPath !== null && ! $this->tagTablesExist()) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
                 $tagsMigrationPath
@@ -118,7 +129,7 @@ final class SupportServiceProvider extends PackageServiceProvider
             'vendor/spatie/laravel-medialibrary/database/migrations/create_media_table.php.stub'
         );
 
-        if ($mediaMigrationPath !== null) {
+        if ($mediaMigrationPath !== null && ! $this->tableExists('media')) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
                 $mediaMigrationPath
@@ -151,6 +162,35 @@ final class SupportServiceProvider extends PackageServiceProvider
         }
 
         return null;
+    }
+
+    private function resolveCommerceSupportAuditMigrationPath(): ?string
+    {
+        $path = dirname(__DIR__) . '/database/migrations/1970_01_01_000002_create_audits_table.php.stub';
+
+        return is_file($path) ? $path : null;
+    }
+
+    private function auditTableExists(): bool
+    {
+        $connection = config('audit.drivers.database.connection') ?: config('database.default');
+        $table = config('audit.drivers.database.table') ?: 'audits';
+
+        return $this->tableExists((string) $table, is_string($connection) && $connection !== '' ? $connection : null);
+    }
+
+    private function tagTablesExist(): bool
+    {
+        return $this->tableExists('tags') && $this->tableExists('taggables');
+    }
+
+    private function tableExists(string $table, ?string $connection = null): bool
+    {
+        if ($connection === null || $connection === '') {
+            return Schema::hasTable($table);
+        }
+
+        return Schema::connection($connection)->hasTable($table);
     }
 
     private function validateMorphKeyType(): void

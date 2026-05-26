@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        $connection = config('audit.drivers.database.connection') ?: config('database.default');
+        $table = config('audit.drivers.database.table') ?: 'audits';
+        $morphPrefix = config('audit.user.morph_prefix', 'user');
+        $desiredMorphKeyType = (string) config('commerce-support.database.morph_key_type', 'uuid');
+        $userIdColumn = $morphPrefix . '_id';
+        $userTypeColumn = $morphPrefix . '_type';
+        $legacyUserIdColumn = 'legacy_' . $userIdColumn;
+
+        if ($desiredMorphKeyType === 'int') {
+            return;
+        }
+
+        if (! Schema::connection($connection)->hasTable($table) || ! Schema::connection($connection)->hasColumn($table, $userIdColumn)) {
+            return;
+        }
+
+        if (! $this->usesLegacyIntegerActorColumn($connection, $table, $userIdColumn)) {
+            return;
+        }
+
+        $this->dropUserActorIndex($connection, $table, $userIdColumn, $userTypeColumn);
+
+        if (! Schema::connection($connection)->hasColumn($table, $legacyUserIdColumn)) {
+            Schema::connection($connection)->table($table, function (Blueprint $table) use ($userIdColumn, $legacyUserIdColumn): void {
+                $table->renameColumn($userIdColumn, $legacyUserIdColumn);
+            });
+        } else {
+            Schema::connection($connection)->table($table, function (Blueprint $table) use ($userIdColumn): void {
+                $table->dropColumn($userIdColumn);
+            });
+        }
+
+        Schema::connection($connection)->table($table, function (Blueprint $table) use ($desiredMorphKeyType, $userIdColumn): void {
+            if ($desiredMorphKeyType === 'ulid') {
+                $table->ulid($userIdColumn)->nullable();
+
+                return;
+            }
+
+            $table->uuid($userIdColumn)->nullable();
+        });
+
+        Schema::connection($connection)->table($table, function (Blueprint $table) use ($userIdColumn, $userTypeColumn): void {
+            $table->index([$userIdColumn, $userTypeColumn]);
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        $connection = config('audit.drivers.database.connection') ?: config('database.default');
+        $table = config('audit.drivers.database.table') ?: 'audits';
+        $morphPrefix = config('audit.user.morph_prefix', 'user');
+        $userIdColumn = $morphPrefix . '_id';
+        $userTypeColumn = $morphPrefix . '_type';
+        $legacyUserIdColumn = 'legacy_' . $userIdColumn;
+
+        if (! Schema::connection($connection)->hasTable($table) || ! Schema::connection($connection)->hasColumn($table, $legacyUserIdColumn)) {
+            return;
+        }
+
+        $activeUserReferences = DB::connection($connection)
+            ->table($table)
+            ->whereNotNull($userIdColumn)
+            ->count();
+
+        if ($activeUserReferences > 0) {
+            throw new RuntimeException('Cannot roll back audit actor column migration while audits.user_id contains UUID/ULID values.');
+        }
+
+        $this->dropUserActorIndex($connection, $table, $userIdColumn, $userTypeColumn);
+
+        Schema::connection($connection)->table($table, function (Blueprint $table) use ($userIdColumn): void {
+            $table->dropColumn($userIdColumn);
+        });
+
+        Schema::connection($connection)->table($table, function (Blueprint $table) use ($legacyUserIdColumn, $userIdColumn): void {
+            $table->renameColumn($legacyUserIdColumn, $userIdColumn);
+        });
+
+        Schema::connection($connection)->table($table, function (Blueprint $table) use ($userIdColumn, $userTypeColumn): void {
+            $table->index([$userIdColumn, $userTypeColumn]);
+        });
+    }
+
+    private function usesLegacyIntegerActorColumn(string $connection, string $table, string $userIdColumn): bool
+    {
+        $columnType = mb_strtolower((string) Schema::connection($connection)->getColumnType($table, $userIdColumn));
+
+        return in_array($columnType, ['bigint', 'int8', 'integer', 'int4', 'int', 'bigserial', 'serial8'], true);
+    }
+
+    private function dropUserActorIndex(string $connection, string $table, string $userIdColumn, string $userTypeColumn): void
+    {
+        try {
+            Schema::connection($connection)->table($table, function (Blueprint $table) use ($userIdColumn, $userTypeColumn): void {
+                $table->dropIndex([$userIdColumn, $userTypeColumn]);
+            });
+        } catch (Throwable) {
+            // Index may already be absent or renamed by the host application.
+        }
+    }
+};
