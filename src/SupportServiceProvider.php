@@ -20,6 +20,7 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Spatie\LaravelSettings\LaravelSettingsServiceProvider;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Spatie\Tags\TagsServiceProvider;
+use Spatie\WebhookClient\WebhookClientServiceProvider;
 
 /**
  * Support Service Provider
@@ -135,6 +136,53 @@ final class SupportServiceProvider extends PackageServiceProvider
                 $mediaMigrationPath
             );
         }
+
+        if ($this->shouldLoadWebhookCallsMigration()) {
+            $webhookCallsMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000004_create_webhook_calls_table.php.stub';
+
+            if (is_file($webhookCallsMigrationPath)) {
+                ConditionalMigrationLoader::loadFileIfMissing(
+                    $this,
+                    $webhookCallsMigrationPath,
+                    'create_webhook_calls_table'
+                );
+            }
+        }
+    }
+
+    private function shouldLoadWebhookCallsMigration(): bool
+    {
+        if (! class_exists(WebhookClientServiceProvider::class)) {
+            return false;
+        }
+
+        if ($this->tableExists('webhook_calls')) {
+            return false;
+        }
+
+        $configs = config('webhook-client.configs', []);
+
+        if (! is_array($configs)) {
+            return false;
+        }
+
+        foreach ($configs as $config) {
+            if (! is_array($config)) {
+                continue;
+            }
+
+            $name = $config['name'] ?? null;
+            $webhookModel = $config['webhook_model'] ?? null;
+            $processWebhookJob = $config['process_webhook_job'] ?? null;
+
+            if (is_string($name) && $name !== ''
+                && is_string($webhookModel) && $webhookModel !== ''
+                && is_string($processWebhookJob) && $processWebhookJob !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function resolveDependencyPath(

@@ -12,6 +12,7 @@ return [
     */
     'database' => [
         'morph_key_type' => env('COMMERCE_MORPH_KEY_TYPE', 'uuid'),
+        'json_column_type' => env('COMMERCE_SUPPORT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     /*

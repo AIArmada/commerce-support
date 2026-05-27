@@ -10,7 +10,7 @@ if (! function_exists('commerce_json_column_type')) {
      * @param  string|null  $packageKey  e.g. 'vouchers', 'chip', 'docs' (used to read {PKG}_JSON_COLUMN_TYPE)
      * @param  string  $default  Fallback when no env is set
      */
-    function commerce_json_column_type(?string $packageKey = null, string $default = 'json'): string
+    function commerce_json_column_type(?string $packageKey = null, string $default = 'jsonb'): string
     {
         $global = getenv('COMMERCE_JSON_COLUMN_TYPE');
 

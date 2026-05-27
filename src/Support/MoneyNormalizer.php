@@ -73,7 +73,7 @@ final class MoneyNormalizer
      * @param  string  $locale  Locale for formatting
      * @return string Formatted currency string
      */
-    public static function format(int $cents, string $currencyCode = 'USD', string $locale = 'en_US'): string
+    public static function format(int $cents, string $currencyCode = 'MYR', string $locale = 'en_US'): string
     {
         $formatter = new NumberFormatter($locale, NumberFormatter::CURRENCY);
 
