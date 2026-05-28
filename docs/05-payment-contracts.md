@@ -4,38 +4,202 @@ title: Payment Contracts
 
 # Payment Contracts
 
-Commerce Support defines universal payment contracts that allow any payment gateway to integrate with the commerce ecosystem. These contracts provide a consistent interface regardless of whether you're using Stripe, CHIP, PayPal, or a custom provider.
+Commerce Support defines two layers for payments:
 
-## Architecture Overview
+- gateway contracts for creating, reading, refunding, and reconciling payments
+- payment-subject contracts for resolving which local model and customer payload should be sent to a gateway
 
+This page documents the current contracts used by `checkout`, `chip`, `cashier`, `cashier-chip`, and any custom gateway integrations.
+
+## Architecture overview
+
+```text
+CheckoutableInterface + LineItemInterface
+    │
+    ├── PaymentSubjectContext
+    │       │
+    │       └── PaymentSubjectResolverInterface
+    │               ├── customers driver (if installed)
+    │               └── guest fallback driver
+    │
+    └── PaymentGatewayInterface
+            ├── createPayment(...)
+            ├── getPayment(...)
+            ├── refundPayment(...)
+            ├── capturePayment(...)
+            └── getWebhookHandler()
+                    └── WebhookPayload
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Payment Flow                              │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  CheckoutableInterface ──► PaymentGatewayInterface           │
-│         │                         │                          │
-│         ▼                         ▼                          │
-│  CustomerInterface         PaymentIntentInterface            │
-│  LineItemInterface         PaymentStatus (enum)              │
-│                                   │                          │
-│                                   ▼                          │
-│                        WebhookHandlerInterface               │
-│                        WebhookPayload (DTO)                  │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+
+## Payment subject resolution
+
+The payment-subject layer sits between checkout state and the gateway. Its job is to answer two questions before a payment is created:
+
+1. which local model should be treated as the payment subject
+2. which normalized customer data should be passed to the gateway
+
+That resolution is gateway-aware, owner-aware, and package-extensible.
+
+### PaymentSubjectContext
+
+`PaymentSubjectContext` is the input object passed to subject drivers.
+
+```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
+
+$context = new PaymentSubjectContext(
+    gateway: 'chip',
+    actor: $user,
+    subject: $explicitSubject,
+    sessionCustomer: $checkoutSession->customer,
+    sessionBillable: $checkoutSession->billable,
+    billingData: $checkoutSession->billing_data ?? [],
+    shippingData: $checkoutSession->shipping_data ?? [],
+    metadata: [
+        'checkout_session_id' => $checkoutSession->id,
+    ],
+    owner: $owner,
+    source: 'checkout',
+);
+```
+
+### PaymentSubjectDriverInterface
+
+Drivers participate in subject resolution in descending priority order.
+
+```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectDriverInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\ResolvedPaymentSubject;
+
+interface PaymentSubjectDriverInterface
+{
+    public function getIdentifier(): string;
+
+    public function getPriority(): int;
+
+    public function supports(PaymentSubjectContext $context): bool;
+
+    public function resolve(PaymentSubjectContext $context): ?ResolvedPaymentSubject;
+}
+```
+
+Use a higher priority for domain-aware drivers. For example, `aiarmada/customers` registers a customer-aware driver, while Commerce Support registers the guest fallback driver at a low priority.
+
+### PaymentSubjectResolverInterface
+
+The resolver owns driver registration and executes them in sorted priority order until one returns a result.
+
+```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectDriverInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\ResolvedPaymentSubject;
+
+interface PaymentSubjectResolverInterface
+{
+    public function register(PaymentSubjectDriverInterface $driver): void;
+
+    public function resolve(PaymentSubjectContext $context): ?ResolvedPaymentSubject;
+
+    /** @return array<int, PaymentSubjectDriverInterface> */
+    public function all(): array;
+}
+```
+
+Commerce Support binds the resolver as a singleton and registers `GuestPaymentSubjectDriver` by default. Other packages may register additional drivers during boot.
+
+### ResolvedPaymentSubject
+
+`ResolvedPaymentSubject` is the normalized result of subject resolution.
+
+```php
+use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\ResolvedPaymentSubject;
+use Illuminate\Database\Eloquent\Model;
+
+final readonly class ResolvedPaymentSubject
+{
+    public function __construct(
+        public ?Model $subject,
+        public ?CustomerInterface $paymentCustomer,
+        public bool $isGuest,
+        public string $resolvedBy,
+        public array $metadata = [],
+    ) {}
+}
+```
+
+The important fields in practice are:
+
+- `subject` — the resolved local model, often a `Customer` when `aiarmada/customers` is installed
+- `paymentCustomer` — normalized customer details to send to the gateway
+- `isGuest` — whether the flow resolved a guest customer
+- `resolvedBy` — the driver identifier that produced the result
+
+### PaymentCustomerData
+
+`PaymentCustomerData` is the stock immutable implementation of `CustomerInterface` used by the built-in drivers.
+
+```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentCustomerData;
+
+$customer = new PaymentCustomerData(
+    email: 'guest@example.com',
+    name: 'Guest Customer',
+    phone: '+60123456789',
+    country: 'MY',
+    billingStreetAddress: '123 Example Street',
+    billingCity: 'Kuala Lumpur',
+    billingState: 'Kuala Lumpur',
+    billingPostalCode: '50000',
+    billingCountry: 'MY',
+    shippingStreetAddress: '123 Example Street',
+    shippingCity: 'Kuala Lumpur',
+    shippingState: 'Kuala Lumpur',
+    shippingPostalCode: '50000',
+    shippingCountry: 'MY',
+    gatewayCustomerId: null,
+    metadata: ['checkout_session_id' => '...'],
+);
+```
+
+### Resolving a subject before payment
+
+```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
+
+$resolved = app(PaymentSubjectResolverInterface::class)->resolve(
+    new PaymentSubjectContext(
+        gateway: 'chip',
+        actor: $user,
+        sessionCustomer: $checkoutSession->customer,
+        sessionBillable: $checkoutSession->billable,
+        billingData: $checkoutSession->billing_data ?? [],
+        shippingData: $checkoutSession->shipping_data ?? [],
+        metadata: ['checkout_session_id' => $checkoutSession->id],
+        owner: $owner,
+        source: 'checkout',
+    )
+);
+
+if ($resolved === null || $resolved->paymentCustomer === null) {
+    throw new RuntimeException('Unable to resolve payment customer.');
+}
+
+$paymentCustomer = $resolved->paymentCustomer;
+$subject = $resolved->subject;
 ```
 
 ## PaymentGatewayInterface
 
-The core contract that all payment gateways must implement:
+Every gateway implementation must satisfy `PaymentGatewayInterface`.
 
 ```php
-use AIArmada\CommerceSupport\Contracts\Payment\PaymentGatewayInterface;
-use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\CheckoutableInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
-use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentGatewayInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\WebhookHandlerInterface;
 use Akaunting\Money\Money;
 
@@ -57,16 +221,11 @@ interface PaymentGatewayInterface
 
     public function cancelPayment(string $paymentId): PaymentIntentInterface;
 
-    public function refundPayment(
-        string $paymentId,
-        ?Money $amount = null
-    ): PaymentIntentInterface;
+    public function refundPayment(string $paymentId, ?Money $amount = null): PaymentIntentInterface;
 
-    public function capturePayment(
-        string $paymentId,
-        ?Money $amount = null
-    ): PaymentIntentInterface;
+    public function capturePayment(string $paymentId, ?Money $amount = null): PaymentIntentInterface;
 
+    /** @return array<string, mixed> */
     public function getPaymentMethods(array $filters = []): array;
 
     public function supports(string $feature): bool;
@@ -75,115 +234,94 @@ interface PaymentGatewayInterface
 }
 ```
 
-### Implementing a Gateway
+### Common gateway features
 
-```php
-use AIArmada\CommerceSupport\Contracts\Payment\PaymentGatewayInterface;
-use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
-use AIArmada\CommerceSupport\Contracts\Payment\CheckoutableInterface;
+`supports()` is intentionally string-based so packages can negotiate capabilities without sharing concrete implementations. Common feature flags include:
 
-class StripeGateway implements PaymentGatewayInterface
-{
-    public function __construct(
-        private StripeClient $stripe
-    ) {}
-
-    public function createPayment(
-        CheckoutableInterface $checkoutable,
-        ?CustomerInterface $customer = null,
-        array $options = []
-    ): PaymentIntentInterface {
-        $intent = $this->stripe->paymentIntents->create([
-            'amount' => $checkoutable->getTotalInCents(),
-            'currency' => strtolower($checkoutable->getCurrency()),
-            'customer' => $customer?->getGatewayId(),
-            'metadata' => $checkoutable->getMetadata(),
-        ]);
-
-        return new StripePaymentIntent($intent);
-    }
-
-    public function supports(string $feature): bool
-    {
-        return in_array($feature, [
-            'partial_refund',
-            'delayed_capture',
-            'payment_methods',
-        ]);
-    }
-
-    // ... other methods
-}
-```
+- `refunds`
+- `partial_refunds`
+- `pre_authorization`
+- `recurring`
+- `webhooks`
+- `hosted_checkout`
+- `embedded_checkout`
 
 ## PaymentIntentInterface
 
-Represents the result of a payment operation:
+`PaymentIntentInterface` normalizes the gateway response after a payment is created or retrieved.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
+use Akaunting\Money\Money;
+use DateTimeInterface;
 
 interface PaymentIntentInterface
 {
-    public function getId(): string;
+    public function getPaymentId(): string;
+
+    public function getReference(): ?string;
+
+    public function getAmount(): Money;
 
     public function getStatus(): PaymentStatus;
 
-    public function getAmount(): int;
-
-    public function getCurrency(): string;
-
-    public function getGatewayReference(): ?string;
-
-    public function getClientSecret(): ?string;
-
     public function getCheckoutUrl(): ?string;
 
+    public function getSuccessUrl(): ?string;
+
+    public function getFailureUrl(): ?string;
+
+    public function isPaid(): bool;
+
+    public function isPending(): bool;
+
+    public function isFailed(): bool;
+
+    public function isCancelled(): bool;
+
+    public function isRefunded(): bool;
+
+    public function getRefundableAmount(): Money;
+
+    public function isTest(): bool;
+
+    public function getGatewayName(): string;
+
+    public function getCreatedAt(): DateTimeInterface;
+
+    public function getUpdatedAt(): DateTimeInterface;
+
+    public function getPaidAt(): ?DateTimeInterface;
+
+    /** @return array<string, mixed> */
     public function getMetadata(): array;
 
+    /** @return array<string, mixed> */
     public function getRawResponse(): array;
 }
 ```
 
-### Example Implementation
+### Using a normalized payment intent
 
 ```php
-class StripePaymentIntent implements PaymentIntentInterface
-{
-    public function __construct(
-        private \Stripe\PaymentIntent $intent
-    ) {}
+$payment = $gateway->createPayment($checkoutable, $paymentCustomer, [
+    'success_url' => route('checkout.payment.success'),
+    'failure_url' => route('checkout.payment.failure'),
+]);
 
-    public function getId(): string
-    {
-        return $this->intent->id;
-    }
+if ($payment->getCheckoutUrl() !== null) {
+    return redirect()->away($payment->getCheckoutUrl());
+}
 
-    public function getStatus(): PaymentStatus
-    {
-        return match ($this->intent->status) {
-            'succeeded' => PaymentStatus::PAID,
-            'processing' => PaymentStatus::PROCESSING,
-            'requires_payment_method' => PaymentStatus::REQUIRES_ACTION,
-            'requires_action' => PaymentStatus::REQUIRES_ACTION,
-            'canceled' => PaymentStatus::CANCELLED,
-            default => PaymentStatus::PENDING,
-        };
-    }
-
-    public function getClientSecret(): ?string
-    {
-        return $this->intent->client_secret;
-    }
-
-    // ... other methods
+if ($payment->isPaid()) {
+    // Mark the local payment or order as paid.
 }
 ```
 
-## PaymentStatus Enum
+## PaymentStatus
 
-A comprehensive enum covering all payment states with transition enforcement:
+`PaymentStatus` is the normalized state machine for payment lifecycles.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
@@ -202,330 +340,243 @@ enum PaymentStatus: string
     case CANCELLED = 'cancelled';
     case EXPIRED = 'expired';
     case DISPUTED = 'disputed';
-
-    // Status checks
-    public function isSuccessful(): bool;
-    public function isPending(): bool;
-    public function isTerminal(): bool;
-    public function isRefundable(): bool;
-    
-    // Transition enforcement
-    public function canTransitionTo(PaymentStatus $target): bool;
-    public function getAllowedTransitions(): array;
-    public function transitionTo(PaymentStatus $target): PaymentStatus;
 }
 ```
 
-### Status Flow
+### Status helpers
 
-```
-CREATED ──► PENDING ──► PROCESSING ──► AUTHORIZED ──► PAID
-                │              │              │          │
-                │              │              │          ▼
-                │              │              │    PARTIALLY_REFUNDED
-                │              │              │          │
-                │              │              │          ▼
-                ▼              ▼              ▼       REFUNDED
-             EXPIRED        FAILED       CANCELLED
+The enum exposes helpers for common control flow:
 
-                    ┌────────────────┐
-                    │    DISPUTED    │ (can occur after PAID)
-                    └────────────────┘
-```
+- `isSuccessful()` — `AUTHORIZED`, `PAID`, `PARTIALLY_REFUNDED`
+- `isPending()` — `CREATED`, `PENDING`, `PROCESSING`, `REQUIRES_ACTION`
+- `isTerminal()` — `PAID`, `REFUNDED`, `FAILED`, `CANCELLED`, `EXPIRED`
+- `isRefundable()` — `PAID`, `PARTIALLY_REFUNDED`
+- `isCancellable()` — `CREATED`, `PENDING`, `AUTHORIZED`
 
-### Using Status Methods
+### Transition enforcement
 
 ```php
-$status = $intent->getStatus();
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
 
-if ($status->isSuccessful()) {
-    // PAID, PARTIALLY_REFUNDED
+if ($currentStatus->canTransitionTo(PaymentStatus::PAID)) {
+    $currentStatus = $currentStatus->transitionTo(PaymentStatus::PAID);
 }
 
-if ($status->isPending()) {
-    // CREATED, PENDING, PROCESSING, REQUIRES_ACTION, AUTHORIZED
-}
-
-if ($status->isTerminal()) {
-    // PAID, REFUNDED, FAILED, CANCELLED, EXPIRED
-}
-
-if ($status->isRefundable()) {
-    // PAID, PARTIALLY_REFUNDED
-}
-```
-
-### Transition Enforcement
-
-PaymentStatus enforces valid state transitions to prevent invalid payment flows:
-
-```php
-// Check if transition is allowed
-if (PaymentStatus::PENDING->canTransitionTo(PaymentStatus::PAID)) {
-    // Valid transition
-}
-
-// Get all allowed transitions from current status
 $allowed = PaymentStatus::PENDING->getAllowedTransitions();
-// [PROCESSING, REQUIRES_ACTION, AUTHORIZED, PAID, FAILED, CANCELLED, EXPIRED]
-
-// Transition with validation (throws on invalid)
-try {
-    $newStatus = PaymentStatus::PENDING->transitionTo(PaymentStatus::PAID);
-    // Success
-} catch (InvalidArgumentException $e) {
-    // Invalid transition
-}
-
-// Invalid transitions throw exceptions
-PaymentStatus::REFUNDED->transitionTo(PaymentStatus::PAID);
-// Throws: Cannot transition from 'refunded' to 'paid'
 ```
 
-### HasPaymentStatus Trait
-
-Use this trait on models to automatically enforce transitions:
-
-```php
-use AIArmada\CommerceSupport\Traits\HasPaymentStatus;
-
-class Order extends Model
-{
-    use HasPaymentStatus;
-
-    protected function casts(): array
-    {
-        return [
-            'payment_status' => PaymentStatus::class,
-        ];
-    }
-}
-
-// Transitions are automatically validated
-$order = Order::find($id);
-$order->payment_status = PaymentStatus::PENDING;
-$order->save(); // OK
-
-$order->payment_status = PaymentStatus::PAID;
-$order->save(); // OK - valid transition
-
-$order->payment_status = PaymentStatus::CREATED;
-$order->save(); // Throws - invalid transition!
-
-// Or use convenience methods
-$order->transitionPaymentStatus(PaymentStatus::PAID); // Validates and saves
-$order->markAsPaid();      // Convenience method
-$order->markAsRefunded();  // Convenience method
-$order->markAsFailed();    // Convenience method
-```
+`transitionTo()` throws an `InvalidArgumentException` when a transition is not allowed.
 
 ## CheckoutableInterface
 
-Defines what can be checked out:
+`CheckoutableInterface` describes the chargeable aggregate sent to a gateway.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\Payment\CheckoutableInterface;
-use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\LineItemInterface;
+use Akaunting\Money\Money;
 
 interface CheckoutableInterface
 {
-    public function getCheckoutId(): string;
+    /** @return iterable<LineItemInterface> */
+    public function getCheckoutLineItems(): iterable;
 
-    public function getCustomer(): CustomerInterface;
+    public function getCheckoutSubtotal(): Money;
 
-    /** @return array<LineItemInterface> */
-    public function getLineItems(): array;
+    public function getCheckoutDiscount(): Money;
 
-    public function getTotalInCents(): int;
+    public function getCheckoutTax(): Money;
 
-    public function getCurrency(): string;
+    public function getCheckoutTotal(): Money;
 
-    public function getMetadata(): array;
+    public function getCheckoutCurrency(): string;
 
-    public function getSuccessUrl(): ?string;
+    public function getCheckoutReference(): string;
 
-    public function getCancelUrl(): ?string;
+    public function getCheckoutNotes(): ?string;
+
+    /** @return array<string, mixed> */
+    public function getCheckoutMetadata(): array;
 }
 ```
 
-### Implementing on Cart
+## LineItemInterface
+
+Each line item is also normalized so gateways can build itemized purchases consistently.
 
 ```php
-class Cart extends Model implements CheckoutableInterface
+use AIArmada\CommerceSupport\Contracts\Payment\LineItemInterface;
+use Akaunting\Money\Money;
+
+interface LineItemInterface
 {
-    public function getCheckoutId(): string
-    {
-        return $this->id;
-    }
+    public function getLineItemId(): string;
 
-    public function getCustomer(): CustomerInterface
-    {
-        return new CartCustomer($this->user);
-    }
+    public function getLineItemName(): string;
 
-    public function getLineItems(): array
-    {
-        return $this->items->map(
-            fn (CartItem $item) => new CartLineItem($item)
-        )->all();
-    }
+    public function getLineItemPrice(): Money;
 
-    public function getTotalInCents(): int
-    {
-        return $this->total; // Already in cents
-    }
+    public function getLineItemQuantity(): int | float;
 
-    public function getCurrency(): string
-    {
-        return $this->currency ?? config('commerce.defaults.currency');
-    }
+    public function getLineItemDiscount(): Money;
+
+    public function getLineItemTaxPercent(): float;
+
+    public function getLineItemSubtotal(): Money;
+
+    public function getLineItemCategory(): ?string;
+
+    /** @return array<string, mixed> */
+    public function getLineItemMetadata(): array;
 }
 ```
 
 ## CustomerInterface
 
-Customer data for payment providers:
+`CustomerInterface` is the normalized customer payload that gateways receive.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
 
 interface CustomerInterface
 {
-    public function getCustomerId(): string;
+    public function getCustomerEmail(): string;
 
-    public function getEmail(): ?string;
+    public function getCustomerName(): ?string;
 
-    public function getName(): ?string;
+    public function getCustomerPhone(): ?string;
 
-    public function getPhone(): ?string;
+    public function getCustomerCountry(): ?string;
 
-    public function getGatewayId(?string $gateway = null): ?string;
+    public function getBillingStreetAddress(): ?string;
 
-    public function getMetadata(): array;
+    public function getBillingCity(): ?string;
+
+    public function getBillingState(): ?string;
+
+    public function getBillingPostalCode(): ?string;
+
+    public function getBillingCountry(): ?string;
+
+    public function hasShippingAddress(): bool;
+
+    public function getShippingStreetAddress(): ?string;
+
+    public function getShippingCity(): ?string;
+
+    public function getShippingState(): ?string;
+
+    public function getShippingPostalCode(): ?string;
+
+    public function getShippingCountry(): ?string;
+
+    public function getGatewayCustomerId(): ?string;
+
+    /** @return array<string, mixed> */
+    public function getCustomerMetadata(): array;
 }
 ```
 
-## LineItemInterface
-
-Individual line items in a checkout:
-
-```php
-use AIArmada\CommerceSupport\Contracts\Payment\LineItemInterface;
-
-interface LineItemInterface
-{
-    public function getLineItemId(): string;
-
-    public function getName(): string;
-
-    public function getDescription(): ?string;
-
-    public function getQuantity(): int;
-
-    public function getUnitPriceInCents(): int;
-
-    public function getTotalInCents(): int;
-
-    public function getMetadata(): array;
-}
-```
-
-## Webhook Handling
+## Webhook contracts
 
 ### WebhookHandlerInterface
 
+Gateways normalize incoming webhook requests through `WebhookHandlerInterface`.
+
 ```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\WebhookHandlerInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\WebhookPayload;
+use Illuminate\Http\Request;
 
 interface WebhookHandlerInterface
 {
-    public function handle(WebhookPayload $payload): void;
+    public function verifyWebhook(Request $request): bool;
 
-    public function supports(string $eventType): bool;
+    public function parseWebhook(Request $request): WebhookPayload;
+
+    public function getEventType(Request $request): string;
+
+    public function isPaymentEvent(Request $request): bool;
+
+    public function getPaymentFromWebhook(Request $request): ?PaymentIntentInterface;
 }
 ```
 
-### WebhookPayload DTO
+### WebhookPayload
+
+`WebhookPayload` is the normalized DTO returned by `parseWebhook()`.
 
 ```php
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
 use AIArmada\CommerceSupport\Contracts\Payment\WebhookPayload;
 
 $payload = new WebhookPayload(
     eventType: 'payment.completed',
-    eventId: 'evt_123',
-    paymentId: 'pi_abc',
+    paymentId: 'purchase_123',
     status: PaymentStatus::PAID,
-    amount: 10000,
-    currency: 'USD',
-    rawPayload: $request->all()
+    reference: 'checkout-session-uuid',
+    gatewayName: 'chip',
+    occurredAt: now(),
+    rawData: request()->all(),
 );
-
-// Usage
-$payload->eventType;  // 'payment.completed'
-$payload->status;     // PaymentStatus::PAID
-$payload->rawPayload; // Original webhook data
 ```
 
-## MoneyNormalizer
+Helper methods:
 
-Helper for consistent money handling:
+- `isPaymentSuccess()`
+- `isPaymentFailed()`
+- `isRefund()`
+- `isCancellation()`
+- `get($key, $default = null)` for nested raw payload access
 
-```php
-use AIArmada\CommerceSupport\Support\MoneyNormalizer;
-
-// Convert to cents
-MoneyNormalizer::toCents(99.99);      // 9999
-MoneyNormalizer::toCents('$99.99');   // 9999
-MoneyNormalizer::toCents(9999);       // 9999 (already cents)
-MoneyNormalizer::toCents(null);       // 0
-
-// Convert to dollars
-MoneyNormalizer::toDollars(9999);     // 99.99
-
-// Format for display
-MoneyNormalizer::format(9999, 'USD'); // Uses Money library
-```
-
-### Supported Currency Symbols
-
-The normalizer strips these symbols: `$`, `€`, `£`, `¥`, `₹`, `RM`, `₱`, `₩`, `฿`, `₫`, `₪`, `₨`, `R$`, `kr`, `zł`
-
-## Integration Example
-
-Complete example using all contracts:
+## End-to-end example
 
 ```php
-class PaymentService
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentGatewayInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
+
+final class CreateCheckoutPaymentAction
 {
     public function __construct(
-        private PaymentGatewayInterface $gateway
+        private PaymentGatewayInterface $gateway,
+        private PaymentSubjectResolverInterface $subjectResolver,
     ) {}
 
-    public function checkout(Cart $cart): PaymentIntentInterface
+    public function handle(object $checkoutSession, object $checkoutable, mixed $user = null): string
     {
-        // Cart implements CheckoutableInterface
-        $intent = $this->gateway->createPayment($cart, null, [
-            'capture_method' => 'automatic',
-        ]);
+        $resolved = $this->subjectResolver->resolve(new PaymentSubjectContext(
+            gateway: $this->gateway->getName(),
+            actor: $user,
+            sessionCustomer: $checkoutSession->customer,
+            sessionBillable: $checkoutSession->billable,
+            billingData: $checkoutSession->billing_data ?? [],
+            shippingData: $checkoutSession->shipping_data ?? [],
+            metadata: [
+                'checkout_session_id' => $checkoutSession->id,
+            ],
+            owner: $checkoutSession->owner,
+            source: 'checkout',
+        ));
 
-        // In a controller, redirect using $intent->getCheckoutUrl() when pending.
-        // This service returns the intent only.
+        $payment = $this->gateway->createPayment(
+            $checkoutable,
+            $resolved?->paymentCustomer,
+            [
+                'success_url' => route('checkout.payment.success'),
+                'failure_url' => route('checkout.payment.failure'),
+            ],
+        );
 
-        return $intent;
-    }
-
-    public function handleWebhook(WebhookPayload $payload): void
-    {
-        $intent = $this->gateway->getPayment($payload->paymentId);
-
-        if ($intent->getStatus()->isSuccessful()) {
-            // Complete order
-            Order::where('payment_id', $payload->paymentId)
-                ->first()
-                ->markAsPaid();
-        }
+        return $payment->getCheckoutUrl() ?? route('checkout.payment.success');
     }
 }
 ```
+
+## Related docs
+
+- [Usage](04-usage.md)
+- [Webhooks](08-webhooks.md)
+- [`aiarmada/customers` overview](../../customers/docs/01-overview.md)
+- [`aiarmada/checkout` payment flow](../../checkout/docs/07-payment-flow.md)
