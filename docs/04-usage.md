@@ -18,6 +18,7 @@ to choose the right primitive, contract, or helper before diving into the deeper
 - [Traits & Utilities](10-traits-utilities.md) — reusable traits, helpers, and common support utilities
 - [Isolation Primitives](11-isolation-primitives.md) — owner-scoped cache, filesystem, queue, and middleware helpers
 - [Actions](12-actions.md) — reusable action classes for owner-safe and package-safe orchestration
+- Filament navigation — central menu grouping/hiding for apps that install many `filament-*` packages
 
 ## 2. Use the owner-safety primitives by default
 
@@ -48,7 +49,26 @@ $summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), f
 
 `MoneyNormalizer::format()` now defaults to `MYR` when you omit the currency code. Pass an explicit code whenever a downstream package or UI contract needs a different currency.
 
-## 4. Treat the deep docs as task guides
+## 4. Standardize Filament package navigation
+
+When an application installs many Commerce Filament packages, register the shared navigation plugin once on the panel:
+
+```php
+use AIArmada\CommerceSupport\Support\Filament\CommerceNavigationPlugin;
+
+public function panel(Panel $panel): Panel
+{
+    return $panel
+        ->plugins([
+            CommerceNavigationPlugin::make(),
+            // Other Commerce Filament plugins...
+        ]);
+}
+```
+
+Then configure groups and hidden entries in `config/commerce-support.php` under `filament.navigation`. This keeps menu shape in the application, while packages still register their resources, pages, routes, policies, and owner-scoped queries normally.
+
+## 5. Treat the deep docs as task guides
 
 Use the linked pages above as task-focused guides. `commerce-support` is intentionally broad; the
 canonical usage path here helps AI and humans decide which foundation document to read next.

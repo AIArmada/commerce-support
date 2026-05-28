@@ -51,6 +51,15 @@ return [
         // Gate ability required to view CommerceHealthWidget
         'view_ability' => 'viewCommerceHealth',
     ],
+
+    'filament' => [
+        'navigation' => [
+            'enabled' => true,
+            'groups' => [],
+            'packages' => [],
+            'items' => [],
+        ],
+    ],
 ];
 ```
 
@@ -124,6 +133,75 @@ Define the ability in your application's authorization layer:
 ```php
 Gate::define('viewCommerceHealth', fn (User $user): bool => $user->isAdmin());
 ```
+
+### Filament Navigation Settings
+
+#### `enabled`
+
+Enables the central Commerce navigation builder when `CommerceNavigationPlugin` is registered on a panel.
+
+**Default:** `true`
+
+#### `groups`
+
+Defines the preferred group order and group presentation.
+
+```php
+'filament' => [
+    'navigation' => [
+        'groups' => [
+            'Catalog' => ['label' => 'Catalog', 'sort' => 10],
+            'Sales' => ['label' => 'Sales', 'sort' => 20],
+            'Operations' => ['label' => 'Operations', 'sort' => 30, 'collapsed' => true],
+        ],
+    ],
+],
+```
+
+#### `packages`
+
+Sets defaults for all navigation items from a Commerce Filament package. Package-specific item keys can hide individual menu entries or override their group/sort.
+
+```php
+'filament' => [
+    'navigation' => [
+        'packages' => [
+            'filament-products' => [
+                'group' => 'Catalog',
+                'items' => [
+                    'products' => ['sort' => 10],
+                    'attributes' => ['visible' => false],
+                ],
+            ],
+            'filament-orders' => [
+                'group' => 'Sales',
+            ],
+        ],
+    ],
+],
+```
+
+#### `items`
+
+Overrides a single resource or page by class string. This is the most precise option and works even when a package item key is not obvious.
+
+```php
+'filament' => [
+    'navigation' => [
+        'items' => [
+            AIArmada\FilamentProducts\Resources\AttributeResource::class => [
+                'visible' => false,
+            ],
+            AIArmada\FilamentGrowth\Pages\GrowthDashboard::class => [
+                'group' => 'Insights',
+                'sort' => 5,
+            ],
+        ],
+    ],
+],
+```
+
+Supported item keys are `visible`, `hidden`, `group`, `parent_item`, and `sort`. Hiding navigation does not authorize or block direct URL access; use policies and owner scoping for security.
 
 ## Environment Variables
 

@@ -37,4 +37,13 @@ return [
     'health' => [
         'view_ability' => 'viewCommerceHealth',
     ],
+
+    'filament' => [
+        'navigation' => [
+            'enabled' => true,
+            'groups' => [],
+            'packages' => [],
+            'items' => [],
+        ],
+    ],
 ];

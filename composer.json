@@ -29,6 +29,7 @@
         "spatie/laravel-webhook-client": "^3.6.2"
     },
     "suggest": {
+        "filament/filament": "Required to use the optional Commerce Navigation Filament plugin.",
         "laravel/octane": "Required for high-performance Octane support"
     },
     "autoload": {
