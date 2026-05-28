@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport;
 
 use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
+use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
 use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
+use AIArmada\CommerceSupport\Support\Payment\GuestPaymentSubjectDriver;
+use AIArmada\CommerceSupport\Support\Payment\PaymentSubjectResolver;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingEngine;
 use Illuminate\Support\Facades\Schema;
@@ -48,6 +51,7 @@ final class SupportServiceProvider extends PackageServiceProvider
     public function packageRegistered(): void
     {
         $this->registerOwnerResolver();
+        $this->registerPaymentSubjectResolver();
         $this->registerTargetingEngine();
     }
 
@@ -334,5 +338,17 @@ final class SupportServiceProvider extends PackageServiceProvider
         $this->app->singleton(TargetingEngineInterface::class, function (): TargetingEngineInterface {
             return new TargetingEngine;
         });
+    }
+
+    private function registerPaymentSubjectResolver(): void
+    {
+        $this->app->singleton(PaymentSubjectResolver::class, function (): PaymentSubjectResolver {
+            $resolver = new PaymentSubjectResolver;
+            $resolver->register(new GuestPaymentSubjectDriver);
+
+            return $resolver;
+        });
+
+        $this->app->alias(PaymentSubjectResolver::class, PaymentSubjectResolverInterface::class);
     }
 }

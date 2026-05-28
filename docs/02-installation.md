@@ -32,8 +32,11 @@ This creates `config/commerce-support.php`.
 # Morph key type for polymorphic relations (uuid, ulid, or int)
 COMMERCE_MORPH_KEY_TYPE=uuid
 
-# JSON column type (json or jsonb for PostgreSQL)
-COMMERCE_JSON_COLUMN_TYPE=json
+# Package JSON column type (defaults to jsonb; override to json only when needed)
+COMMERCE_SUPPORT_JSON_COLUMN_TYPE=jsonb
+
+# Optional global fallback shared by other commerce packages
+COMMERCE_JSON_COLUMN_TYPE=jsonb
 
 # Default currency used by shared money helpers
 COMMERCE_DEFAULT_CURRENCY=MYR
@@ -81,6 +84,8 @@ Register in config:
     'resolver' => App\Support\TenantOwnerResolver::class,
 ],
 ```
+
+When `COMMERCE_OWNER_ENABLED=true`, boot fails closed if the resolver is still `NullOwnerResolver`, so wire the resolver before enabling owner mode in production.
 
 ## Verify Installation
 

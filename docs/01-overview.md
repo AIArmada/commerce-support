@@ -15,6 +15,7 @@ Commerce Support serves as the **single source of truth** for the cross-package 
 - Owner scoping primitives and explicit global-context semantics
 - Isolation helpers for cache, filesystem, queue, and request middleware
 - Payment gateway and checkout contracts shared by payment-facing packages
+- Payment-subject resolution contracts used to resolve customers, guests, and billable models before payment
 - The targeting engine, evaluator contracts, and shared rule infrastructure
 - Base webhook validators/processors and health-check abstractions
 - Shared auditing, logging, money, install, and testing utilities
@@ -41,6 +42,7 @@ Commerce Support provides these major surfaces:
 - **Multi-tenancy** - Owner scoping primitives and enforcement
 - **Isolation Primitives** - Cache, filesystem, queue, and middleware helpers for single-database multitenancy
 - **Payment Gateway Contracts** - Universal interfaces for any payment provider
+- **Payment Subject Resolution** - Driver-based customer/billable resolution before checkout or billing handoff
 - **Targeting Engine** - Advanced rule-based eligibility evaluation
 - **Auditing & Logging** - Compliance-grade tracking with Spatie packages
 - **Webhook Processing** - Base classes for webhook handling

@@ -46,6 +46,8 @@ $summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), f
 });
 ```
 
+`MoneyNormalizer::format()` now defaults to `MYR` when you omit the currency code. Pass an explicit code whenever a downstream package or UI contract needs a different currency.
+
 ## 4. Treat the deep docs as task guides
 
 Use the linked pages above as task-focused guides. `commerce-support` is intentionally broad; the

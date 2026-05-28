@@ -22,6 +22,7 @@ return [
     'database' => [
         // Morph key type: 'uuid', 'ulid', or 'int'
         'morph_key_type' => env('COMMERCE_MORPH_KEY_TYPE', 'uuid'),
+        'json_column_type' => env('COMMERCE_SUPPORT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     /*
@@ -129,8 +130,9 @@ Gate::define('viewCommerceHealth', fn (User $user): bool => $user->isAdmin());
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `COMMERCE_MORPH_KEY_TYPE` | `uuid` | Polymorphic key type |
-| `COMMERCE_JSON_COLUMN_TYPE` | `json` | JSON column type (json/jsonb) |
-| `COMMERCE_DEFAULT_CURRENCY` | `MYR` | Default currency code used by `FormatsMoney` and `currency_symbol()` |
+| `COMMERCE_SUPPORT_JSON_COLUMN_TYPE` | `jsonb` | Package-specific JSON column type override for `commerce-support` |
+| `COMMERCE_JSON_COLUMN_TYPE` | `jsonb` | Shared fallback JSON column type used across commerce packages |
+| `COMMERCE_DEFAULT_CURRENCY` | `MYR` | Default currency code used by `MoneyNormalizer::format()`, `FormatsMoney`, and `currency_symbol()` |
 | `COMMERCE_OWNER_ENABLED` | `false` | Fail closed unless a concrete owner resolver is configured |
 | `COMMERCE_OWNER_RESOLVER` | `NullOwnerResolver::class` | Owner resolver class |
 

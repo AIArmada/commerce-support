@@ -291,6 +291,8 @@ final class ExportOrdersJob implements OwnerScopedJob, ShouldQueue
 
 If a queue/event payload is serialized externally (wire format), use snake_case keys (`owner_type`, `owner_id`) and map them to camelCase PHP fields at the boundary.
 
+For simpler jobs that do not implement `OwnerScopedJob`, `ResolveOwnerJobContextAction` also inspects public `ownerType` / `ownerId` / `ownerIsGlobal` properties and public model payloads. If a public model exposes `getOwner()`, that owner wins; otherwise the resolver falls back to the model's `owner_type` / `owner_id` tuple, and finally the model itself as the owner reference. Prefer `OwnerScopedJob` for explicit behavior, but this fallback keeps queued work owner-safe when jobs pass a model payload directly.
+
 ## Owner lifecycle events
 
 `OwnerContext` dispatches lifecycle events for observability:
