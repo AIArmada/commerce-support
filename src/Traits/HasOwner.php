@@ -35,10 +35,7 @@ trait HasOwner // @phpstan-ignore trait.unused
             // @phpstan-ignore-next-line
             $config = static::ownerScopeConfig();
 
-            // @phpstan-ignore-next-line
-            if ($config instanceof OwnerScopeConfig) {
-                return $config;
-            }
+            return $config;
         }
 
         return new OwnerScopeConfig(
