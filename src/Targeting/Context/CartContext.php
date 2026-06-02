@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Targeting\Context;
 
 use Illuminate\Support\Collection;
+use ReflectionMethod;
 
 /**
  * Cart-specific context for targeting evaluation.
@@ -209,7 +210,19 @@ readonly class CartContext
      */
     private static function extractCartMetadata(mixed $cart): array
     {
+        if (method_exists($cart, 'getAllMetadata')) {
+            $metadata = $cart->getAllMetadata();
+
+            return is_array($metadata) ? $metadata : [];
+        }
+
         if (method_exists($cart, 'getMetadata')) {
+            $metadataMethod = new ReflectionMethod($cart, 'getMetadata');
+
+            if ($metadataMethod->getNumberOfRequiredParameters() > 0) {
+                return [];
+            }
+
             $metadata = $cart->getMetadata();
 
             return is_array($metadata) ? $metadata : [];
