@@ -15,6 +15,13 @@ interface TargetingEngineInterface
     public function registerEvaluator(TargetingRuleEvaluator $evaluator): self;
 
     /**
+     * Register evaluators from tagged container services.
+     *
+     * @param  iterable<TargetingRuleEvaluator>  $taggedEvaluators
+     */
+    public function registerEvaluatorsFromContainer(iterable $taggedEvaluators): self;
+
+    /**
      * Get a registered evaluator by type.
      */
     public function getEvaluator(string $type): ?TargetingRuleEvaluator;

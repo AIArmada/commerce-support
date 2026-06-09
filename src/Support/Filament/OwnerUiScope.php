@@ -43,12 +43,6 @@ final class OwnerUiScope
         return OwnerContext::resolve() !== null || OwnerContext::isExplicitGlobal();
     }
 
-    /**
-     * @template TModel of Model
-     *
-     * @param  Builder<TModel>  $query
-     * @return Builder<TModel>
-     */
     public static function apply(Builder $query, ?string $configKey = null, ?bool $includeGlobal = null, ?string $message = null): Builder
     {
         try {
@@ -68,7 +62,6 @@ final class OwnerUiScope
             $message ?? sprintf('%s requires an owner context or explicit global context.', self::subjectLabel($query)),
         );
 
-        /** @var Builder<TModel> $scopedQuery */
         $scopedQuery = $query->withoutGlobalScope(OwnerScope::class);
 
         return OwnerQuery::applyToEloquentBuilder(
@@ -90,12 +83,6 @@ final class OwnerUiScope
         return self::canInteractWithRecord($record, $configKey, false, true);
     }
 
-    /**
-     * @template TModel of Model
-     *
-     * @param  Builder<TModel>  $query
-     * @return Builder<TModel>
-     */
     public static function applyForRecordOwner(Builder $query, Model $record, ?string $recordConfigKey = null, ?string $queryConfigKey = null): Builder
     {
         if (! self::canAccessRecord($record, null, $recordConfigKey)) {
@@ -118,7 +105,6 @@ final class OwnerUiScope
             return $query;
         }
 
-        /** @var Builder<TModel> $scopedQuery */
         $scopedQuery = $query->withoutGlobalScope(OwnerScope::class);
 
         return OwnerQuery::applyToEloquentBuilder(
@@ -239,12 +225,6 @@ final class OwnerUiScope
         ));
     }
 
-    /**
-     * @template TModel of Model
-     *
-     * @param  Builder<TModel>  $query
-     * @return Builder<TModel>
-     */
     private static function failClosed(Builder $query): Builder
     {
         return $query->whereRaw('1 = 0');

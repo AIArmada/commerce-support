@@ -38,6 +38,20 @@ class TargetingEngine implements TargetingEngineInterface
         return $this;
     }
 
+    /**
+     * @param  iterable<TargetingRuleEvaluator>  $taggedEvaluators
+     */
+    public function registerEvaluatorsFromContainer(iterable $taggedEvaluators): self
+    {
+        foreach ($taggedEvaluators as $evaluator) {
+            if ($evaluator instanceof TargetingRuleEvaluator) {
+                $this->registerEvaluator($evaluator);
+            }
+        }
+
+        return $this;
+    }
+
     public function getEvaluator(string $type): ?TargetingRuleEvaluator
     {
         return $this->evaluators[$type] ?? null;
