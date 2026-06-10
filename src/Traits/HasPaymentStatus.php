@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Traits;
 
+use AIArmada\CommerceSupport\Contracts\Payment\HasPaymentStatusTimestamps;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
 use AIArmada\CommerceSupport\Exceptions\PaymentGatewayException;
+use Carbon\CarbonImmutable;
 
 /**
  * Trait for models with PaymentStatus to enforce valid transitions.
@@ -58,7 +60,33 @@ trait HasPaymentStatus
     }
 
     /**
+     * Get the mapping of payment status values to timestamp column names.
+     *
+     * Only terminal/business-critical states return timestamp columns:
+     * - PAID       -> paid_at
+     * - REFUNDED   -> refunded_at
+     * - FAILED     -> failed_at
+     * - CANCELLED  -> cancelled_at
+     *
+     * Override this method in your model to customize the mapping.
+     *
+     * @return array<string, string> PaymentStatus value => timestamp column name
+     */
+    public function getPaymentStatusTimestamps(): array
+    {
+        return [
+            PaymentStatus::PAID->value => 'paid_at',
+            PaymentStatus::REFUNDED->value => 'refunded_at',
+            PaymentStatus::FAILED->value => 'failed_at',
+            PaymentStatus::CANCELLED->value => 'cancelled_at',
+        ];
+    }
+
+    /**
      * Transition to a new payment status with validation.
+     *
+     * Automatically sets transition timestamps for terminal/business-critical
+     * states if the corresponding column exists on the model's table.
      *
      * @throws PaymentGatewayException If transition is invalid
      */
@@ -76,6 +104,20 @@ trait HasPaymentStatus
 
         $attribute = $this->getPaymentStatusAttribute();
         $this->setAttribute($attribute, $newStatus);
+
+        // Auto-set transition timestamp for terminal states only
+        $timestamps = $this->getPaymentStatusTimestamps();
+        $column = $timestamps[$newStatus->value] ?? null;
+
+        if ($column !== null) {
+            $table = $this->getTable();
+            $connection = $this->getConnection();
+            $schema = $connection->getSchemaBuilder();
+
+            if ($schema->hasColumn($table, $column)) {
+                $this->setAttribute($column, new CarbonImmutable);
+            }
+        }
 
         if ($save) {
             $this->save();

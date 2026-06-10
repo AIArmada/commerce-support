@@ -7,6 +7,7 @@ namespace AIArmada\CommerceSupport\Actions;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Spatie\WebhookClient\Models\WebhookCall;
+use Throwable;
 
 final class ProcessWebhookCallAction
 {
@@ -23,38 +24,50 @@ final class ProcessWebhookCallAction
         callable $isDuplicateProcessedEvent,
         callable $processEvent,
     ): void {
-        DB::transaction(function () use ($webhookCall, $extractEventType, $isDuplicateProcessedEvent, $processEvent): void {
-            /** @var WebhookCall|null $locked */
-            $locked = WebhookCall::query()
-                ->whereKey($webhookCall->getKey())
-                ->lockForUpdate()
-                ->first();
+        try {
+            DB::transaction(function () use ($webhookCall, $extractEventType, $isDuplicateProcessedEvent, $processEvent): void {
+                /** @var WebhookCall|null $locked */
+                $locked = WebhookCall::query()
+                    ->whereKey($webhookCall->getKey())
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $locked instanceof WebhookCall) {
-                return;
-            }
+                if (! $locked instanceof WebhookCall) {
+                    return;
+                }
 
-            if ($locked->getAttribute('processed_at') !== null) {
-                return;
-            }
+                if ($locked->getAttribute('processed_at') !== null) {
+                    return;
+                }
 
-            /** @var array<string, mixed> $payload */
-            $payload = $locked->payload;
-            $eventType = $extractEventType($payload);
+                /** @var array<string, mixed> $payload */
+                $payload = $locked->payload;
+                $eventType = $extractEventType($payload);
 
-            if ($isDuplicateProcessedEvent($locked, $payload, $eventType)) {
+                if ($isDuplicateProcessedEvent($locked, $payload, $eventType)) {
+                    $locked->update([
+                        'status' => 'processed',
+                        'processed_at' => now(),
+                    ]);
+
+                    return;
+                }
+
+                $processEvent($eventType, $payload);
+
                 $locked->update([
+                    'status' => 'processed',
                     'processed_at' => now(),
                 ]);
-
-                return;
-            }
-
-            $processEvent($eventType, $payload);
-
-            $locked->update([
-                'processed_at' => now(),
+            });
+        } catch (Throwable $e) {
+            $webhookCall->update([
+                'status' => 'failed',
+                'failed_at' => now(),
+                'exception' => (string) $e,
             ]);
-        });
+
+            throw $e;
+        }
     }
 }
