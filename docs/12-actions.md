@@ -26,6 +26,7 @@ Actions are ideal for:
 | [DiscoverCommerceMigrationPublishTagsAction](#discovercommercemigrationpublishtagsaction) | Discover publish tags for migrations only | `::run()` |
 | [ResolveProjectRootAction](#resolveprojectrootaction) | Detect project root in monorepo/testbench context | `::run()` |
 | [EnsureCustomGuidelinesSymlinkAction](#ensurecustomguidelinessymlinkaction) | Create .ai/guidelines symlink for testbench | `::run(projectRoot, warn)` |
+| [OwnerBatchRunner](#ownerbatchrunner) | Iterate over owners and run a callback for each | `::run(modelClass, callback, options)` |
 
 ---
 
@@ -237,6 +238,41 @@ EnsureCustomGuidelinesSymlinkAction::run(
 - Never deletes real directories
 
 **Integration:** Used by `BoostInstallCommand` and `BoostUpdateCommand`.
+
+---
+
+## OwnerBatchRunner
+
+**Purpose:** Iterate over all owners of a given model class and run a callback for each, in a scoped `OwnerContext`.
+
+**Use case:** Console commands, batch jobs, scheduled tasks that need to operate per-owner.
+
+```php
+use AIArmada\CommerceSupport\Support\OwnerBatchRunner;
+
+$results = OwnerBatchRunner::run(
+    modelClass: Product::class,
+    callback: function ($owner) {
+        // Runs inside OwnerContext::withOwner($owner)
+        return Product::forOwner($owner)->count();
+    },
+    options: [
+        'ownerType' => 'App\Models\Tenant',
+        'selectColumns' => ['id', 'name'],
+        'chunkSize' => 100,
+    ]
+);
+
+// $results is an array of [ownerId => callbackResult]
+```
+
+**Features:**
+- Iterates owners in chunks to avoid memory issues
+- Wraps each iteration in `OwnerContext::withOwner()`
+- Supports explicit-global handling
+- Returns reduced results per owner
+
+**Integration:** Used by 6+ consumer packages (signals, inventory, cashier-chip, affiliates).
 
 ---
 

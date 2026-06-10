@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Traits;
 
-use AIArmada\CommerceSupport\Contracts\Payment\HasPaymentStatusTimestamps;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentStatus;
 use AIArmada\CommerceSupport\Exceptions\PaymentGatewayException;
 use Carbon\CarbonImmutable;

@@ -40,13 +40,16 @@ Commerce Support serves as the **single source of truth** for the cross-package 
 Commerce Support provides these major surfaces:
 
 - **Multi-tenancy** - Owner scoping primitives and enforcement
+- **Owner Batch Runner** - `OwnerBatchRunner` for per-owner iteration in batch commands/jobs
 - **Isolation Primitives** - Cache, filesystem, queue, and middleware helpers for single-database multitenancy
 - **Payment Gateway Contracts** - Universal interfaces for any payment provider
+- **Payment Status Normalizer** - `PaymentStatusNormalizer` for gateway-agnostic status mapping
 - **Payment Subject Resolution** - Driver-based customer/billable resolution before checkout or billing handoff
-- **Targeting Engine** - Advanced rule-based eligibility evaluation
-- **Auditing & Logging** - Compliance-grade tracking with Spatie packages
+- **Targeting Engine** - Advanced rule-based eligibility evaluation with tagged evaluator registration
+- **Auditing & Logging** - Compliance-grade tracking with `AuditableModelRegistry` and `LoggableModelRegistry`
 - **Webhook Processing** - Base classes for webhook handling
-- **Health Checks** - Service health monitoring
+- **Health Checks** - Service health monitoring with `HealthCheckRegistry`
+- **Navigation Contributors** - `CommerceNavigationContributorInterface` for Filament nav extensibility
 - **Money Normalization** - Consistent currency handling
 
 ## Key dependencies
@@ -69,6 +72,7 @@ commerce-support/
 ├── Contracts/              # Interfaces for cross-package communication
 │   ├── Events/             # Event interfaces (Cart, Inventory, Voucher)
 │   ├── Payment/            # Payment gateway abstractions
+│   ├── CommerceNavigationContributorInterface
 │   └── ...                 # Owner resolver, owner scope, Auditable, Loggable
 ├── Concerns/               # Shared traits
 │   ├── HasCommerceAudit    # Compliance auditing
@@ -86,16 +90,20 @@ commerce-support/
 │   ├── OwnerScopeKey       # Stable owner scope hashing
 │   ├── OwnerQuery          # Query builder helpers
 │   ├── OwnerWriteGuard     # Write validation
-│   └── OwnerRouteBinding   # Route model binding
+│   ├── OwnerRouteBinding   # Route model binding
+│   ├── OwnerBatchRunner    # Per-owner batch command iteration
+│   ├── Payment/            # Payment status normalizer
+│   ├── AuditableModelRegistry
+│   └── LoggableModelRegistry
 ├── Middleware/             # Request-time owner identification helpers
 ├── Targeting/              # Rule evaluation engine
 │   ├── TargetingEngine     # Main evaluation engine
 │   ├── TargetingContext    # Context object
-│   ├── Evaluators/         # 19 built-in evaluators
+│   ├── Evaluators/         # 19+ built-in evaluators (tagged registration available)
 │   ├── Contracts/          # Evaluator interfaces
 │   └── Enums/              # Mode and rule types
 ├── Webhooks/               # Webhook base classes
-├── Health/                 # Health check base
+├── Health/                 # Health check base + HealthCheckRegistry
 ├── Exceptions/             # Shared exceptions
 └── Commands/               # Artisan commands
 ```
