@@ -30,9 +30,9 @@ trait HasOwner // @phpstan-ignore trait.unused
 {
     protected static function resolveOwnerScopeConfig(): OwnerScopeConfig
     {
-        // @phpstan-ignore-next-line
+        // @phpstan-ignore function.alreadyNarrowedType
         if (method_exists(static::class, 'ownerScopeConfig')) {
-            // @phpstan-ignore-next-line
+            // @phpstan-ignore function.alreadyNarrowedType
             $config = static::ownerScopeConfig();
 
             return $config;
