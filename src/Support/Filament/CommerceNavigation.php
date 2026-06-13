@@ -360,7 +360,7 @@ final class CommerceNavigation
                 }
 
                 if (blank($groupName)) {
-                    return NavigationGroup::make()->items($items);
+                    return NavigationGroup::make()->items($items->values()->all());
                 }
 
                 $registeredGroup = $groups->first(static function (NavigationGroup | string $registeredGroup, string | int $registeredGroupIndex) use ($groupName): bool {
@@ -380,7 +380,7 @@ final class CommerceNavigation
                 });
 
                 if ($registeredGroup instanceof NavigationGroup) {
-                    return $registeredGroup->items($items);
+                    return $registeredGroup->items($items->values()->all());
                 }
 
                 $group = NavigationGroup::make($registeredGroup ?? $groupName);
@@ -393,7 +393,7 @@ final class CommerceNavigation
                     $group->icon($groupEnum->getIcon());
                 }
 
-                return $group->items($items);
+                return $group->items($items->values()->all());
             })
             ->filter(static fn (NavigationGroup $group): bool => filled($group->getItems()))
             ->sortBy(fn (NavigationGroup $group, ?string $groupIndex): int => self::groupSort($group, $groupIndex, $registeredGroups))
