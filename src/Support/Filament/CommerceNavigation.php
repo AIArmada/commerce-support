@@ -30,16 +30,56 @@ final class CommerceNavigation
             return [];
         }
 
-        $groups = self::navigationConfig('groups', []);
+        $configGroups = self::navigationConfig('groups', []);
+        $groups = [];
 
-        if (! is_array($groups)) {
-            return [];
+        if (is_array($configGroups)) {
+            $groups = $configGroups;
+        } else {
+            $groups = [];
+        }
+
+        // Auto-discover group names from panel resources/pages so ALL sidebar
+        // groups get a NavigationGroup with config sort values, not just the
+        // ones explicitly defined in config.
+        try {
+            $panel = Filament::getCurrentOrDefaultPanel();
+        } catch (\Throwable) {
+            $panel = null;
+        }
+
+        if ($panel !== null) {
+            $extractGroup = static function (string $class) use (&$groups): void {
+                if (! method_exists($class, 'getNavigationGroup')) {
+                    return;
+                }
+                $g = $class::getNavigationGroup();
+                if (! is_string($g) || $g === '' || array_key_exists($g, $groups)) {
+                    return;
+                }
+                $groups[$g] = ['label' => $g, 'collapsible' => true];
+            };
+            foreach ($panel->getResources() as $resource) {
+                $extractGroup(is_string($resource) ? $resource : $resource::class);
+            }
+            foreach ($panel->getPages() as $page) {
+                $extractGroup(is_string($page) ? $page : $page::class);
+            }
+            foreach ($panel->getPageConfigurations() as $configuration) {
+                $page = $configuration->getPage();
+                $extractGroup(is_string($page) ? $page : get_class($page));
+            }
         }
 
         return collect($groups)
-            ->sortBy(static fn (mixed $definition): int => is_array($definition) && is_numeric($definition['sort'] ?? null)
-                ? (int) $definition['sort']
-                : 0)
+            ->sortBy(static function (mixed $definition, string | int $key): array {
+                $sort = is_array($definition) && is_numeric($definition['sort'] ?? null)
+                    ? (int) $definition['sort']
+                    : 0;
+                $label = is_array($definition) ? ($definition['label'] ?? $key) : (is_string($definition) ? $definition : $key);
+
+                return [$sort, mb_strtolower($label)];
+            })
             ->map(static function (mixed $definition, string | int $key): ?NavigationGroup {
                 if (is_string($definition)) {
                     return NavigationGroup::make($definition);
@@ -72,7 +112,6 @@ final class CommerceNavigation
                 return $group;
             })
             ->filter()
-            ->values()
             ->all();
     }
 
@@ -82,13 +121,13 @@ final class CommerceNavigation
             return $panel;
         }
 
-        if (method_exists($panel, 'navigationGroups')) {
-            $groups = self::groups();
-
-            if ($groups !== []) {
-                $panel->navigationGroups($groups);
-            }
+        // Guard against double-call from both CommerceNavigationPlugin and
+        // FilamentCommerceSupportPlugin. Config is request-scoped in both
+        // traditional PHP and Octane, unlike a static property.
+        if (self::navigationConfig('_panel_configured', false)) {
+            return $panel;
         }
+        config()->set('commerce-support.filament.navigation._panel_configured', true);
 
         if (method_exists($panel, 'navigation')) {
             $panel->navigation(static fn (): NavigationBuilder => self::builder());
@@ -116,8 +155,12 @@ final class CommerceNavigation
             ->sortBy(fn (NavigationItem $item): int => $item->getSort())
             ->values();
 
+        $groups = collect(self::groupNavigationItems($items, $registeredGroups))
+            ->map(fn (NavigationGroup $g): NavigationGroup => $g->collapsible(true))
+            ->all();
+
         return (new NavigationBuilder)
-            ->groups(self::groupNavigationItems($items, $registeredGroups));
+            ->groups($groups);
     }
 
     public static function configureNavigationItem(NavigationItem $item, string $component): NavigationItem
@@ -127,7 +170,20 @@ final class CommerceNavigation
         }
 
         $item->visible($item->isVisible() && self::visible($component));
-        $item->group(self::group($component, $item->getGroup()));
+        $item->label(self::label($component, $item->getLabel()));
+
+        $effectiveGroup = self::group($component, $item->getGroup());
+        $item->group($effectiveGroup);
+
+        // If the item's group is hidden, hide the item too so the entire
+        // group (header + all its items) disappears from the sidebar.
+        if ($effectiveGroup !== null && $effectiveGroup !== '') {
+            $groupConfig = self::navigationConfig("groups.{$effectiveGroup}", []);
+            if (is_array($groupConfig) && ! empty($groupConfig['hidden'])) {
+                $item->visible(false);
+            }
+        }
+
         $item->parentItem(self::parentItem($component, $item->getParentItem()));
         $item->sort(self::sort($component, $item->getSort()));
 
@@ -200,6 +256,23 @@ final class CommerceNavigation
         }
 
         return (int) $config['sort'];
+    }
+
+    public static function label(string $component, ?string $default = null, ?string $package = null, ?string $item = null): ?string
+    {
+        if (! self::enabled()) {
+            return $default;
+        }
+
+        $config = self::itemConfig($component, $package, $item);
+
+        if (! array_key_exists('label', $config)) {
+            return $default;
+        }
+
+        $label = $config['label'];
+
+        return is_string($label) && $label !== '' ? $label : $default;
     }
 
     private static function enabled(): bool
@@ -334,23 +407,23 @@ final class CommerceNavigation
     {
         $groups = collect($registeredGroups);
 
-        return $items
+        $result = $items
             ->groupBy(static fn (NavigationItem $item): string => serialize($item->getGroup()))
-            ->map(function (Collection $items, string $groupIndex) use ($groups): NavigationGroup {
-                $parentItems = $items->groupBy(static fn (NavigationItem $item): string => $item->getParentItem() ?? '');
+            ->reduce(function (array $carry, Collection $itemGroup, string $groupIndex) use ($groups): array {
+                $parentItems = $itemGroup->groupBy(static fn (NavigationItem $item): string => $item->getParentItem() ?? '');
 
-                $items = $parentItems->get('', collect())
+                $groupItems = $parentItems->get('', collect())
                     ->keyBy(static fn (NavigationItem $item): string => $item->getLabel());
 
-                $parentItems->except([''])->each(function (Collection $parentItemItems, string $parentItemLabel) use ($items): void {
-                    if (! $items->has($parentItemLabel)) {
+                $parentItems->except([''])->each(function (Collection $parentItemItems, string $parentItemLabel) use ($groupItems): void {
+                    if (! $groupItems->has($parentItemLabel)) {
                         return;
                     }
 
-                    $items->get($parentItemLabel)->childItems($parentItemItems);
+                    $groupItems->get($parentItemLabel)->childItems($parentItemItems);
                 });
 
-                $items = $items->filter(static fn (NavigationItem $item): bool => filled($item->getChildItems()) || filled($item->getUrl()));
+                $groupItems = $groupItems->filter(static fn (NavigationItem $item): bool => filled($item->getChildItems()) || filled($item->getUrl()));
                 $groupName = unserialize($groupIndex);
                 $groupEnum = null;
 
@@ -360,7 +433,9 @@ final class CommerceNavigation
                 }
 
                 if (blank($groupName)) {
-                    return NavigationGroup::make()->items($items->values()->all());
+                    $carry[] = NavigationGroup::make()->items($groupItems->values()->all());
+
+                    return $carry;
                 }
 
                 $registeredGroup = $groups->first(static function (NavigationGroup | string $registeredGroup, string | int $registeredGroupIndex) use ($groupName): bool {
@@ -379,26 +454,50 @@ final class CommerceNavigation
                     return $registeredGroup->getLabel() === $groupName;
                 });
 
+                $group = null;
+
                 if ($registeredGroup instanceof NavigationGroup) {
-                    return $registeredGroup->items($items->values()->all());
+                    // Same registered group may match multiple group-by buckets
+                    // (e.g. items with group "Events" and items with override
+                    // group "My Events Wj" both match the same NavigationGroup).
+                    // Merge items into an existing group with the same label
+                    // instead of creating a duplicate sidebar header.
+                    $label = $registeredGroup->getLabel() ?? "\0";
+                    foreach ($carry as $existing) {
+                        if (($existing->getLabel() ?? "\0") === $label) {
+                            $existing->items([...$existing->getItems(), ...$groupItems->values()->all()]);
+
+                            return $carry;
+                        }
+                    }
+
+                    $group = $registeredGroup->items($groupItems->values()->all());
+                } else {
+                    $group = NavigationGroup::make($registeredGroup ?? $groupName);
+
+                    if ($groupEnum instanceof HasLabel) {
+                        $group->label($groupEnum->getLabel());
+                    }
+
+                    if ($groupEnum instanceof HasIcon) {
+                        $group->icon($groupEnum->getIcon());
+                    }
+
+                    $group->items($groupItems->values()->all());
                 }
 
-                $group = NavigationGroup::make($registeredGroup ?? $groupName);
+                $carry[] = $group;
 
-                if ($groupEnum instanceof HasLabel) {
-                    $group->label($groupEnum->getLabel());
-                }
+                return $carry;
+            }, []);
 
-                if ($groupEnum instanceof HasIcon) {
-                    $group->icon($groupEnum->getIcon());
-                }
-
-                return $group->items($items->values()->all());
-            })
+        $result = collect($result)
             ->filter(static fn (NavigationGroup $group): bool => filled($group->getItems()))
             ->sortBy(fn (NavigationGroup $group, ?string $groupIndex): int => self::groupSort($group, $groupIndex, $registeredGroups))
             ->values()
             ->all();
+
+        return $result;
     }
 
     /**
@@ -410,7 +509,20 @@ final class CommerceNavigation
             return -1;
         }
 
-        $groupName = $groupIndex !== null ? unserialize($groupIndex) : $group->getLabel();
+        // $groupIndex may be a numeric key (from reduce) or a serialized
+        // string (from map). When it's numeric, fall back to the label.
+        $groupName = $group->getLabel();
+
+        if ($groupIndex !== null && ! is_numeric($groupIndex)) {
+            try {
+                $unserialized = unserialize($groupIndex);
+                if (is_string($unserialized) || $unserialized instanceof UnitEnum) {
+                    $groupName = $unserialized;
+                }
+            } catch (\Throwable) {
+                // Not a valid serialized value; fall back to the label.
+            }
+        }
 
         if ($groupName instanceof UnitEnum) {
             $groupName = $groupName->name;
