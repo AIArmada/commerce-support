@@ -30,7 +30,19 @@ trait HasOwner // @phpstan-ignore trait.unused
 {
     protected static function resolveOwnerScopeConfig(): OwnerScopeConfig
     {
-        return static::ownerScopeConfig();
+        // @phpstan-ignore function.alreadyNarrowedType
+        if (method_exists(static::class, 'ownerScopeConfig')) {
+            // @phpstan-ignore function.alreadyNarrowedType
+            return static::ownerScopeConfig();
+        }
+
+        return new OwnerScopeConfig(
+            enabled: true,
+            includeGlobal: false,
+            owner: null,
+            ownerTypeColumn: 'owner_type',
+            ownerIdColumn: 'owner_id',
+        );
     }
 
     protected static function bootHasOwner(): void
