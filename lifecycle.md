@@ -27,7 +27,7 @@ These gaps make it impossible to:
 
 | Surface | Location | Current State | Gap |
 |---|---|---|---|
-| Base migration | `database/migrations/1970_01_01_000004_create_webhook_calls_table.php.stub` | `id`, `name`, `url`, `headers` (json), `payload` (json), `exception` (text), `processed_at` (timestampTz), `created_at`, `updated_at` | Missing: `status`, `failed_at`, `retry_count`, `last_retry_at` |
+| Base migration | `database/migrations/1970_01_01_000004_create_webhook_calls_table.php.stub` | `id`, `name`, `url`, `headers` (json), `payload` (json), `exception` (text), `processed_at` (timestampTz), `status`, `failed_at`, `retry_count`, `last_retry_at`, `created_at`, `updated_at` | Fresh installs get the lifecycle columns from the base stub; older installs are backfilled by the additive migration |
 | Processing action | `src/Actions/ProcessWebhookCallAction.php` | Locks row, checks `processed_at !== null` as sole completion signal | Cannot distinguish success/failure/retry |
 | Processor base | `src/Webhooks/CommerceWebhookProcessor.php` | Extends `ProcessWebhookJob`, delegates to `ProcessWebhookCallAction` | No status lifecycle hooks |
 | Consumer (chip) | `packages/chip/src/Models/Webhook.php` | Added `status`, `retry_count`, `last_retry_at`, `last_error`, `processing_time_ms` as package-local columns | Inconsistent; each consumer must reinvent |
@@ -181,7 +181,7 @@ Models can override column names by implementing `getPaymentStatusTimestamps()`.
 
 ### Phase 1: commerce-support base (foundation)
 
-- [x] **P1.1** Create new migration stub: `1970_01_01_000005_add_webhook_lifecycle_columns.php.stub`
+- [x] **P1.1** Create additive migration stub: `1970_01_01_000005_add_webhook_lifecycle_columns.php.stub`
   - Add `status`, `failed_at`, `retry_count`, `last_retry_at` columns (idempotent)
 - [x] **P1.2** Create `HasWebhookLifecycle` trait in `src/Traits/`
   - `markProcessed(float $processingTimeMs = 0): static`
