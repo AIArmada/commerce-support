@@ -17,6 +17,7 @@ use Filament\Support\Contracts\HasLabel;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Throwable;
 use UnitEnum;
 
 final class CommerceNavigation
@@ -44,7 +45,7 @@ final class CommerceNavigation
         // ones explicitly defined in config.
         try {
             $panel = Filament::getCurrentOrDefaultPanel();
-        } catch (\Throwable) {
+        } catch (Throwable) {
             $panel = null;
         }
 
@@ -519,7 +520,7 @@ final class CommerceNavigation
                 if (is_string($unserialized) || $unserialized instanceof UnitEnum) {
                     $groupName = $unserialized;
                 }
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 // Not a valid serialized value; fall back to the label.
             }
         }
