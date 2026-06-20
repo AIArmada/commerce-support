@@ -199,7 +199,7 @@ trait HasOwner // @phpstan-ignore trait.unused
      * @param  bool  $includeGlobal  Whether to include global (ownerless) records
      * @return Builder<static>
      */
-    public function scopeForOwner(Builder $query, Model|string|null $owner = OwnerContext::CURRENT, bool $includeGlobal = false): Builder
+    public function scopeForOwner(Builder $query, Model | string | null $owner = OwnerContext::CURRENT, bool $includeGlobal = false): Builder
     {
         /** @var OwnerScopeConfig $config */
         $config = static::resolveOwnerScopeConfig();
@@ -349,6 +349,6 @@ trait HasOwner // @phpstan-ignore trait.unused
         /** @var int|string $key */
         $key = $owner->getKey();
 
-        return $name ?? $displayName ?? $email ?? class_basename($owner).':'.(string) $key;
+        return $name ?? $displayName ?? $email ?? class_basename($owner) . ':' . (string) $key;
     }
 }

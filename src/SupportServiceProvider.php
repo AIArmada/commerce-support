@@ -39,6 +39,11 @@ final class SupportServiceProvider extends PackageServiceProvider
             ->name('commerce-support')
             ->hasConfigFile('commerce-support')
             ->hasViews('commerce-support')
+            ->hasMigrations([
+                '2025_01_01_000001_create_saved_searches_table',
+                '2025_01_01_000002_create_reports_table',
+                '2025_01_01_000003_create_notification_preferences_table',
+            ])
             ->hasCommands([
                 Commands\SetupCommand::class,
                 Commands\BoostInstallCommand::class,
