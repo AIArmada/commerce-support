@@ -68,7 +68,7 @@ final class Role extends SpatieRole
 
         $registrar = app(PermissionRegistrar::class);
 
-        if ($registrar->teams && config('filament-authz.scoped_to_tenant', true)) {
+        if ($registrar->teams && config('authz.scopes.enforce', true)) {
             $teamsKey = $registrar->teamsKey;
             $teamId = getPermissionsTeamId();
 
@@ -93,7 +93,7 @@ final class Role extends SpatieRole
             $teamsKey = $registrar->teamsKey;
             $teamId = $params[$teamsKey] ?? getPermissionsTeamId();
 
-            if (config('filament-authz.scoped_to_tenant', true)) {
+            if (config('authz.scopes.enforce', true)) {
                 if ($teamId === null) {
                     $query->whereNull($teamsKey);
                 } else {

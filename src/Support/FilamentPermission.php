@@ -47,7 +47,7 @@ final class FilamentPermission
 
     private static function isSuperAdmin(Authorizable $user): bool
     {
-        $superAdminRole = config('filament-authz.super_admin_role');
+        $superAdminRole = config('authz.super_admin_role');
 
         if (! is_string($superAdminRole) || $superAdminRole === '' || ! method_exists($user, 'hasRole')) {
             return false;

@@ -30,10 +30,10 @@ final class AuthzScope extends Model
 
     public function getTable(): string
     {
-        $tables = config('filament-authz.database.tables', []);
-        $prefix = config('filament-authz.database.table_prefix', 'authz_');
+        $tables = config('authz.database.tables', []);
+        $prefix = config('authz.database.table_prefix', '');
 
-        return $tables['authz_scopes'] ?? $prefix . 'scopes';
+        return $prefix . ($tables['scopes'] ?? 'authz_scopes');
     }
 
     public function scopeable(): MorphTo
