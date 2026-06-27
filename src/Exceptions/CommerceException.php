@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Exceptions;
 
-use Exception;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -13,7 +13,7 @@ use Throwable;
  * This exception serves as the foundation for all commerce-related exceptions,
  * providing a consistent interface and error handling across the monorepo.
  */
-class CommerceException extends Exception
+class CommerceException extends RuntimeException
 {
     /**
      * Create a new Commerce exception.
