@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Exceptions;
 
 use Illuminate\Http\Request;
-use RuntimeException;
 
-final class NoCurrentOwnerException extends RuntimeException
+final class NoCurrentOwnerException extends CommerceException
 {
     public static function forRequest(Request $request): self
     {
