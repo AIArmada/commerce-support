@@ -250,29 +250,28 @@ EnsureCustomGuidelinesSymlinkAction::run(
 ```php
 use AIArmada\CommerceSupport\Support\OwnerBatchRunner;
 
-$results = OwnerBatchRunner::run(
+// Run once with results aggregated (int/sum, array/reduce, or first non-null)
+$runner = new OwnerBatchRunner(
     modelClass: Product::class,
-    callback: function ($owner) {
-        // Runs inside OwnerContext::withOwner($owner)
-        return Product::forOwner($owner)->count();
-    },
-    options: [
-        'ownerType' => 'App\Models\Tenant',
-        'selectColumns' => ['id', 'name'],
-        'chunkSize' => 100,
-    ]
+    ownerConfig: null, // Uses package config for owner scope settings
 );
+$counts = $runner->run(function ($owner) {
+    // Runs inside OwnerContext::withOwner($owner)
+    return Product::forOwner($owner)->count();
+});
 
-// $results is an array of [ownerId => callbackResult]
+// ForEach returns collection with one entry per owner
+$allResults = $runner->forEach(function ($owner) {
+    return Product::forOwner($owner)->count();
+});
 ```
 
 **Features:**
-- Iterates owners in chunks to avoid memory issues
+- Iterates owners via distinct owner_type/owner_id from the model table
 - Wraps each iteration in `OwnerContext::withOwner()`
-- Supports explicit-global handling
-- Returns reduced results per owner
-
-**Integration:** Used by 6+ consumer packages (signals, inventory, cashier-chip, affiliates).
+- Supports explicit-global handling via includeGlobal config
+- `run()` returns reduced results (sum for ints, reduce for arrays)
+- `forEach()` returns Collection of all results
 
 ---
 

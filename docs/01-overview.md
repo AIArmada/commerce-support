@@ -45,7 +45,7 @@ Commerce Support provides these major surfaces:
 - **Payment Gateway Contracts** - Universal interfaces for any payment provider
 - **Payment Status Normalizer** - `PaymentStatusNormalizer` for gateway-agnostic status mapping
 - **Payment Subject Resolution** - Driver-based customer/billable resolution before checkout or billing handoff
-- **Targeting Engine** - Advanced rule-based eligibility evaluation with tagged evaluator registration
+- **Targeting Engine** - Rule-based eligibility evaluation with 22 built-in evaluators for cart value, user segments, geographic, time-based, and attribution rules
 - **Auditing & Logging** - Compliance-grade tracking with `AuditableModelRegistry` and `LoggableModelRegistry`
 - **Webhook Processing** - Base classes for webhook handling
 - **Health Checks** - Service health monitoring with `HealthCheckRegistry`
@@ -92,14 +92,15 @@ commerce-support/
 │   ├── OwnerWriteGuard     # Write validation
 │   ├── OwnerRouteBinding   # Route model binding
 │   ├── OwnerBatchRunner    # Per-owner batch command iteration
-│   ├── Payment/            # Payment status normalizer
+│   ├── OwnerTuple/         # Owner tuple parsing and column resolution
+│   ├── Payment/            # Payment status normalizer, subject resolver
 │   ├── AuditableModelRegistry
 │   └── LoggableModelRegistry
 ├── Middleware/             # Request-time owner identification helpers
 ├── Targeting/              # Rule evaluation engine
 │   ├── TargetingEngine     # Main evaluation engine
 │   ├── TargetingContext    # Context object
-│   ├── Evaluators/         # 19+ built-in evaluators (tagged registration available)
+│   ├── Evaluators/         # 22 built-in evaluators (tagged registration available)
 │   ├── Contracts/          # Evaluator interfaces
 │   └── Enums/              # Mode and rule types
 ├── Webhooks/               # Webhook base classes
