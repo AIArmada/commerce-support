@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
  * @property-read Model|Eloquent $user
  * @property-read Model|Eloquent|null $searchable
  */
-final class SavedSearch extends Model
+class SavedSearch extends Model
 {
     use HasFactory;
 

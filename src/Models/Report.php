@@ -38,7 +38,7 @@ use Illuminate\Support\Carbon;
  * @property-read Model|Eloquent|null $reporter
  * @property-read Model|Eloquent|null $reviewedBy
  */
-final class Report extends Model
+class Report extends Model
 {
     use HasFactory;
 
