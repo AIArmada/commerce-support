@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Models;
 
 use Eloquent;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -31,6 +32,7 @@ use Illuminate\Support\Carbon;
 final class NotificationPreference extends Model
 {
     use HasFactory;
+    use HasUuids;
 
     protected $fillable = [
         'user_type', 'user_id',

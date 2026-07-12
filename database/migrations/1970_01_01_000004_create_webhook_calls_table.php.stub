@@ -17,7 +17,7 @@ return new class extends Migration
             return;
         }
 
-        $jsonType = (string) config('commerce-support.database.json_column_type', commerce_json_column_type('commerce-support', 'jsonb'));
+        $jsonType = (string) commerce_json_column_type('commerce-support', 'jsonb');
 
         Schema::create('webhook_calls', function (Blueprint $table) use ($jsonType): void {
             $table->bigIncrements('id');

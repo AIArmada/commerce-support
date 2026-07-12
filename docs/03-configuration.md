@@ -22,7 +22,6 @@ return [
     'database' => [
         // Morph key type: 'uuid', 'ulid', or 'int'
         'morph_key_type' => env('COMMERCE_MORPH_KEY_TYPE', 'uuid'),
-        'json_column_type' => env('COMMERCE_SUPPORT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     /*
@@ -97,10 +96,17 @@ When `true`, Commerce Support fails closed during boot if `OwnerResolverInterfac
 'owner' => [
     'enabled' => true,
     'resolver' => App\Support\TenantOwnerResolver::class,
+    'team_type' => App\Models\Team::class,
 ],
 ```
 
 This is not a replacement for package-level owner flags such as `cart.owner.enabled` or `products.features.owner.enabled`; those flags decide whether individual package models apply owner scopes.
+
+#### `team_type`
+
+Optional morph type used by team-aware integrations when the owner is represented by a dedicated team model. Leave it `null` unless the application needs an explicit team morph class.
+
+**Default:** `null`
 
 #### `resolver`
 

@@ -6,6 +6,7 @@ namespace AIArmada\CommerceSupport\Models;
 
 use Carbon\CarbonImmutable;
 use Eloquent;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -41,6 +42,7 @@ use Illuminate\Support\Carbon;
 class Report extends Model
 {
     use HasFactory;
+    use HasUuids;
 
     protected $fillable = [
         'reportable_type', 'reportable_id',

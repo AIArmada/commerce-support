@@ -12,7 +12,6 @@ return [
     */
     'database' => [
         'morph_key_type' => env('COMMERCE_MORPH_KEY_TYPE', 'uuid'),
-        'json_column_type' => env('COMMERCE_SUPPORT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
         'tables' => [
             'saved_searches' => env('COMMERCE_SUPPORT_TABLE_SAVED_SEARCHES', 'saved_searches'),
             'reports' => env('COMMERCE_SUPPORT_TABLE_REPORTS', 'reports'),
@@ -38,6 +37,7 @@ return [
     'owner' => [
         'enabled' => env('COMMERCE_OWNER_ENABLED', false),
         'resolver' => env('COMMERCE_OWNER_RESOLVER', NullOwnerResolver::class),
+        'team_type' => env('COMMERCE_OWNER_TEAM_TYPE'),
     ],
 
     'health' => [
