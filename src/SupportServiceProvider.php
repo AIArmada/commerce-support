@@ -6,10 +6,14 @@ namespace AIArmada\CommerceSupport;
 
 use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
+use AIArmada\CommerceSupport\Contracts\PublicDnsResolver;
+use AIArmada\CommerceSupport\Http\PinnedHttpClient;
 use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
 use AIArmada\CommerceSupport\Support\Payment\GuestPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\PaymentSubjectResolver;
+use AIArmada\CommerceSupport\Support\PublicHttpUrlGuard;
+use AIArmada\CommerceSupport\Support\SystemPublicDnsResolver;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingEngine;
 use Illuminate\Support\Facades\Schema;
@@ -58,6 +62,14 @@ final class SupportServiceProvider extends PackageServiceProvider
         $this->registerOwnerResolver();
         $this->registerPaymentSubjectResolver();
         $this->registerTargetingEngine();
+        $this->registerPinnedHttpTransport();
+    }
+
+    private function registerPinnedHttpTransport(): void
+    {
+        $this->app->singleton(PublicDnsResolver::class, SystemPublicDnsResolver::class);
+        $this->app->singleton(PublicHttpUrlGuard::class, fn ($app): PublicHttpUrlGuard => new PublicHttpUrlGuard($app->make(PublicDnsResolver::class)));
+        $this->app->singleton(PinnedHttpClient::class);
     }
 
     public function bootingPackage(): void

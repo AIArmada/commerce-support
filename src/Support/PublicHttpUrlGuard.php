@@ -4,36 +4,49 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Support;
 
+use AIArmada\CommerceSupport\Contracts\PublicDnsResolver;
 use Closure;
 use InvalidArgumentException;
 use Throwable;
 
-/**
- * Validates outbound HTTP destinations before an application request is made.
- *
- * The guard fails closed for malformed URLs, credentials in URLs, non-HTTP
- * schemes, non-standard ports, localhost/private/reserved addresses, and DNS
- * names that do not resolve exclusively to public addresses.
- */
 final class PublicHttpUrlGuard
 {
-    /** @var Closure(string): list<string> */
-    private readonly Closure $dnsResolver;
+    private readonly PublicDnsResolver $dnsResolver;
 
     /**
-     * @param  (callable(string): list<string>)|null  $dnsResolver
+     * @param  PublicDnsResolver|callable(string): list<string>|null  $dnsResolver
      */
-    public function __construct(?callable $dnsResolver = null)
+    public function __construct(PublicDnsResolver | callable | null $dnsResolver = null)
     {
-        $this->dnsResolver = $dnsResolver !== null
-            ? Closure::fromCallable($dnsResolver)
-            : self::defaultDnsResolver(...);
+        if ($dnsResolver instanceof PublicDnsResolver) {
+            $this->dnsResolver = $dnsResolver;
+
+            return;
+        }
+
+        if (is_callable($dnsResolver)) {
+            $callback = Closure::fromCallable($dnsResolver);
+            $this->dnsResolver = new class($callback) implements PublicDnsResolver
+            {
+                /** @param Closure(string): list<string> $callback */
+                public function __construct(private readonly Closure $callback) {}
+
+                public function resolve(string $hostname): array
+                {
+                    return ($this->callback)($hostname);
+                }
+            };
+
+            return;
+        }
+
+        $this->dnsResolver = new SystemPublicDnsResolver;
     }
 
     public function isAllowed(string $url): bool
     {
         try {
-            $this->assertAllowed($url);
+            $this->validate($url);
 
             return true;
         } catch (InvalidArgumentException) {
@@ -41,75 +54,94 @@ final class PublicHttpUrlGuard
         }
     }
 
-    /**
-     * @throws InvalidArgumentException
-     */
     public function assertAllowed(string $url): void
     {
-        $url = trim($url);
+        $this->validate($url);
+    }
+
+    public function validate(string $url): ValidatedHttpTarget
+    {
+        $url = mb_trim($url);
         $parts = parse_url($url);
 
         if ($url === '' || ! is_array($parts)) {
             throw new InvalidArgumentException('Outbound URL must be a valid absolute HTTP URL.');
         }
 
-        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $scheme = mb_strtolower((string) ($parts['scheme'] ?? ''));
 
         if (! in_array($scheme, ['http', 'https'], true)) {
             throw new InvalidArgumentException('Outbound URL scheme must be HTTP or HTTPS.');
+        }
+
+        if (isset($parts['fragment'])) {
+            throw new InvalidArgumentException('Outbound URLs must not contain fragments.');
         }
 
         if (array_key_exists('user', $parts) || array_key_exists('pass', $parts)) {
             throw new InvalidArgumentException('Outbound URLs must not contain embedded credentials.');
         }
 
-        $port = $parts['port'] ?? null;
+        $port = isset($parts['port']) ? (int) $parts['port'] : ($scheme === 'https' ? 443 : 80);
         $expectedPort = $scheme === 'https' ? 443 : 80;
 
-        if ($port !== null && (int) $port !== $expectedPort) {
+        if ($port !== $expectedPort) {
             throw new InvalidArgumentException('Outbound URL port must match the standard port for its scheme.');
         }
 
-        $host = strtolower(trim((string) ($parts['host'] ?? ''), "[] \t\n\r\0\x0B."));
+        $host = mb_strtolower(mb_trim((string) ($parts['host'] ?? ''), "[] \t\n\r\0\x0B."));
 
-        if ($host === '') {
-            throw new InvalidArgumentException('Outbound URL must include a host.');
+        if ($host === '' || $this->isLocalHostname($host)) {
+            throw new InvalidArgumentException('Outbound URL host must be a public fully-qualified host.');
         }
 
-        if ($this->isLocalHostname($host)) {
-            throw new InvalidArgumentException('Outbound URL host must not target a local hostname.');
-        }
+        $isIpLiteral = filter_var($host, FILTER_VALIDATE_IP) !== false;
 
-        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
-            if (! $this->isPublicIp($host)) {
-                throw new InvalidArgumentException('Outbound URL host must resolve to a public IP address.');
+        if ($isIpLiteral) {
+            $addresses = [$host];
+        } else {
+            if (filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false || ! str_contains($host, '.')) {
+                throw new InvalidArgumentException('Outbound URL host must be a valid fully-qualified domain name.');
             }
 
-            return;
-        }
-
-        if (filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false || ! str_contains($host, '.')) {
-            throw new InvalidArgumentException('Outbound URL host must be a valid fully-qualified domain name.');
-        }
-
-        try {
-            $addresses = ($this->dnsResolver)($host);
-        } catch (Throwable $exception) {
-            throw new InvalidArgumentException(
-                'Outbound URL host could not be resolved safely.',
-                previous: $exception,
-            );
+            try {
+                $addresses = $this->dnsResolver->resolve($host);
+            } catch (Throwable $exception) {
+                throw new InvalidArgumentException('Outbound URL host could not be resolved safely.', previous: $exception);
+            }
         }
 
         if ($addresses === []) {
             throw new InvalidArgumentException('Outbound URL host did not resolve to an IP address.');
         }
 
+        $validated = [];
+
         foreach ($addresses as $address) {
             if (! is_string($address) || ! $this->isPublicIp($address)) {
                 throw new InvalidArgumentException('Outbound URL host must resolve exclusively to public IP addresses.');
             }
+
+            $validated[] = $address;
         }
+
+        $validated = array_values(array_unique($validated));
+        sort($validated, SORT_STRING);
+
+        $normalizedHost = str_contains($host, ':') ? '[' . $host . ']' : $host;
+        $path = (string) ($parts['path'] ?? '');
+        $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+        $normalizedUrl = sprintf('%s://%s%s%s', $scheme, $normalizedHost, $path, $query);
+
+        return new ValidatedHttpTarget(
+            url: $normalizedUrl,
+            scheme: $scheme,
+            host: $host,
+            port: $port,
+            addresses: $validated,
+            selectedIp: $validated[0],
+            isIpLiteral: $isIpLiteral,
+        );
     }
 
     private function isLocalHostname(string $host): bool
@@ -136,13 +168,11 @@ final class PublicHttpUrlGuard
             return false;
         }
 
-        if (strlen($packed) === 4) {
-            $firstOctet = ord($packed[0]);
-
-            return $firstOctet < 224;
+        if (mb_strlen($packed) === 4) {
+            return ord($packed[0]) < 224;
         }
 
-        if (ord($packed[0]) === 0xff) {
+        if (ord($packed[0]) === 0xFF) {
             return false;
         }
 
@@ -151,42 +181,10 @@ final class PublicHttpUrlGuard
 
         return ! (
             is_string($wellKnownNat64)
-            && substr($packed, 0, 12) === substr($wellKnownNat64, 0, 12)
+            && mb_substr($packed, 0, 12) === mb_substr($wellKnownNat64, 0, 12)
         ) && ! (
             is_string($localNat64)
-            && substr($packed, 0, 6) === substr($localNat64, 0, 6)
+            && mb_substr($packed, 0, 6) === mb_substr($localNat64, 0, 6)
         );
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function defaultDnsResolver(string $hostname): array
-    {
-        set_error_handler(static fn (): bool => true);
-
-        try {
-            $records = dns_get_record($hostname, DNS_A | DNS_AAAA);
-        } finally {
-            restore_error_handler();
-        }
-
-        if (! is_array($records)) {
-            return [];
-        }
-
-        $addresses = [];
-
-        foreach ($records as $record) {
-            if (is_string($record['ip'] ?? null)) {
-                $addresses[] = $record['ip'];
-            }
-
-            if (is_string($record['ipv6'] ?? null)) {
-                $addresses[] = $record['ipv6'];
-            }
-        }
-
-        return array_values(array_unique($addresses));
     }
 }
