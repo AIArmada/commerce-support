@@ -73,9 +73,15 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     public function bootingPackage(): void
     {
+        $this->registerTagModel();
         $this->loadDependencyMigrations();
         $this->validateMorphKeyType();
         $this->ensureOwnerResolverIsConfiguredWhenOwnerModeEnabled();
+    }
+
+    private function registerTagModel(): void
+    {
+        config(['tags.tag_model' => Models\Tag::class]);
     }
 
     private function loadDependencyMigrations(): void
