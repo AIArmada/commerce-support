@@ -26,7 +26,6 @@ use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Spatie\LaravelSettings\LaravelSettingsServiceProvider;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
-use Spatie\Tags\TagsServiceProvider;
 use Spatie\WebhookClient\WebhookClientServiceProvider;
 
 /**
@@ -132,16 +131,13 @@ final class SupportServiceProvider extends PackageServiceProvider
             );
         }
 
-        $tagsMigrationPath = $this->resolveDependencyPath(
-            TagsServiceProvider::class,
-            'database/migrations/create_tag_tables.php.stub',
-            'vendor/spatie/laravel-tags/database/migrations/create_tag_tables.php.stub'
-        );
+        $tagsMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000001_create_tag_tables.php.stub';
 
-        if ($tagsMigrationPath !== null && ! $this->tagTablesExist()) {
+        if (is_file($tagsMigrationPath) && ! $this->tagTablesExist()) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
-                $tagsMigrationPath
+                $tagsMigrationPath,
+                'create_tag_tables'
             );
         }
 
