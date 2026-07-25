@@ -18,6 +18,7 @@ to choose the right primitive, contract, or helper before diving into the deeper
 - [Traits & Utilities](10-traits-utilities.md) — reusable traits, helpers, and common support utilities
 - [Isolation Primitives](11-isolation-primitives.md) — owner-scoped cache, filesystem, queue, and middleware helpers
 - [Actions](12-actions.md) — reusable action classes for owner-safe and package-safe orchestration
+- [Reference Data](13-reference-data.md) — language lookup tables and ISO 639-1 seeding
 - Filament navigation — central menu grouping/hiding for apps that install many `filament-*` packages
 
 ## 2. Use the owner-safety primitives by default

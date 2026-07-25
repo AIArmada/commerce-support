@@ -46,6 +46,7 @@ final class SupportServiceProvider extends PackageServiceProvider
                 '2025_01_01_000001_create_saved_searches_table',
                 '2025_01_01_000002_create_reports_table',
                 '2025_01_01_000003_create_notification_preferences_table',
+                '2025_01_01_000004_create_languages_table',
             ])
             ->hasCommands([
                 Commands\SetupCommand::class,
@@ -53,6 +54,7 @@ final class SupportServiceProvider extends PackageServiceProvider
                 Commands\BoostUpdateCommand::class,
                 Commands\PublishMigrationsCommand::class,
                 Commands\InstallCommand::class,
+                Commands\SeedLanguagesCommand::class,
             ]);
     }
 
@@ -62,6 +64,7 @@ final class SupportServiceProvider extends PackageServiceProvider
         $this->registerPaymentSubjectResolver();
         $this->registerTargetingEngine();
         $this->registerPinnedHttpTransport();
+        $this->registerLanguageServices();
     }
 
     private function registerPinnedHttpTransport(): void
@@ -369,6 +372,11 @@ final class SupportServiceProvider extends PackageServiceProvider
         $this->app->singleton(TargetingEngineInterface::class, function (): TargetingEngineInterface {
             return new TargetingEngine;
         });
+    }
+
+    private function registerLanguageServices(): void
+    {
+        $this->app->singleton(Actions\SeedLanguagesAction::class);
     }
 
     private function registerPaymentSubjectResolver(): void

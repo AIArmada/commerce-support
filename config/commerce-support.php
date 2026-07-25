@@ -16,6 +16,7 @@ return [
             'saved_searches' => env('COMMERCE_SUPPORT_TABLE_SAVED_SEARCHES', 'saved_searches'),
             'reports' => env('COMMERCE_SUPPORT_TABLE_REPORTS', 'reports'),
             'notification_preferences' => env('COMMERCE_SUPPORT_TABLE_NOTIFICATION_PREFERENCES', 'notification_preferences'),
+            'languages' => env('COMMERCE_SUPPORT_TABLE_LANGUAGES', 'languages'),
 
         ],
     ],

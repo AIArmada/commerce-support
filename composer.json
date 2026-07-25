@@ -38,7 +38,8 @@
             "src/helpers.php"
         ],
         "psr-4": {
-            "AIArmada\\CommerceSupport\\": "src/"
+            "AIArmada\\CommerceSupport\\": "src/",
+            "AIArmada\\CommerceSupport\\Database\\Seeders\\": "database/seeders/"
         }
     },
     "extra": {
