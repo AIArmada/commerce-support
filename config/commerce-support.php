@@ -17,6 +17,8 @@ return [
             'reports' => env('COMMERCE_SUPPORT_TABLE_REPORTS', 'reports'),
             'notification_preferences' => env('COMMERCE_SUPPORT_TABLE_NOTIFICATION_PREFERENCES', 'notification_preferences'),
             'languages' => env('COMMERCE_SUPPORT_TABLE_LANGUAGES', 'languages'),
+            'currencies' => env('COMMERCE_SUPPORT_TABLE_CURRENCIES', 'currencies'),
+            'timezones' => env('COMMERCE_SUPPORT_TABLE_TIMEZONES', 'timezones'),
 
         ],
     ],

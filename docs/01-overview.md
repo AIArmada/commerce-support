@@ -51,6 +51,7 @@ Commerce Support provides these major surfaces:
 - **Health Checks** - Service health monitoring with `HealthCheckRegistry`
 - **Navigation Contributors** - `CommerceNavigationContributorInterface` for Filament nav extensibility
 - **Money Normalization** - Consistent currency handling
+- **Reference Data** - Shared language, currency, and timezone catalogues
 
 ## Key dependencies
 

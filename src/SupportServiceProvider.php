@@ -47,6 +47,8 @@ final class SupportServiceProvider extends PackageServiceProvider
                 '2025_01_01_000002_create_reports_table',
                 '2025_01_01_000003_create_notification_preferences_table',
                 '2025_01_01_000004_create_languages_table',
+                '2025_01_01_000005_create_currencies_table',
+                '2025_01_01_000006_create_timezones_table',
             ])
             ->hasCommands([
                 Commands\SetupCommand::class,
@@ -55,6 +57,8 @@ final class SupportServiceProvider extends PackageServiceProvider
                 Commands\PublishMigrationsCommand::class,
                 Commands\InstallCommand::class,
                 Commands\SeedLanguagesCommand::class,
+                Commands\SeedCurrenciesCommand::class,
+                Commands\SeedTimezonesCommand::class,
             ]);
     }
 
@@ -65,6 +69,8 @@ final class SupportServiceProvider extends PackageServiceProvider
         $this->registerTargetingEngine();
         $this->registerPinnedHttpTransport();
         $this->registerLanguageServices();
+        $this->app->singleton(Actions\SeedCurrenciesAction::class);
+        $this->app->singleton(Actions\SeedTimezonesAction::class);
     }
 
     private function registerPinnedHttpTransport(): void

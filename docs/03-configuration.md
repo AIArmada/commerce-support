@@ -216,6 +216,9 @@ Supported item keys are `visible`, `hidden`, `group`, `parent_item`, and `sort`.
 | `COMMERCE_MORPH_KEY_TYPE` | `uuid` | Polymorphic key type |
 | `COMMERCE_SUPPORT_JSON_COLUMN_TYPE` | `jsonb` | Package-specific JSON column type override for `commerce-support` |
 | `COMMERCE_JSON_COLUMN_TYPE` | `jsonb` | Shared fallback JSON column type used across commerce packages |
+| `COMMERCE_SUPPORT_TABLE_LANGUAGES` | `languages` | Shared language reference table |
+| `COMMERCE_SUPPORT_TABLE_CURRENCIES` | `currencies` | Shared currency reference table |
+| `COMMERCE_SUPPORT_TABLE_TIMEZONES` | `timezones` | Shared timezone reference table |
 | `COMMERCE_DEFAULT_CURRENCY` | `MYR` | Default currency code used by `MoneyNormalizer::format()`, `FormatsMoney`, and `currency_symbol()` |
 | `COMMERCE_OWNER_ENABLED` | `false` | Fail closed unless a concrete owner resolver is configured |
 | `COMMERCE_OWNER_RESOLVER` | `NullOwnerResolver::class` | Owner resolver class |

@@ -4,7 +4,7 @@ title: Reference Data
 
 # Reference Data
 
-Commerce Support provides a bundled ISO 639-1 language lookup table with seeding infrastructure.
+Commerce Support provides the shared language, currency, and timezone reference catalogues used across Commerce packages.
 
 ## Languages
 
@@ -20,4 +20,20 @@ Or from a seeder:
 
 ```php
 $this->call(\AIArmada\CommerceSupport\Database\Seeders\LanguageSeeder::class);
+```
+
+## Currencies
+
+The `currencies` table contains shared ISO 4217 currency metadata, including symbols and display precision.
+
+```bash
+php artisan commerce:seed-currencies
+```
+
+## Timezones
+
+The `timezones` table contains shared IANA timezone identifiers.
+
+```bash
+php artisan commerce:seed-timezones
 ```
