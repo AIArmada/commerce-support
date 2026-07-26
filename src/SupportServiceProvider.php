@@ -82,10 +82,22 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     public function bootingPackage(): void
     {
+        $this->configureFilamentTables();
         $this->registerTagModel();
         $this->loadDependencyMigrations();
         $this->validateMorphKeyType();
         $this->ensureOwnerResolverIsConfiguredWhenOwnerModeEnabled();
+    }
+
+    private function configureFilamentTables(): void
+    {
+        if (! class_exists(\Filament\Tables\Table::class)) {
+            return;
+        }
+
+        \Filament\Tables\Table::configureUsing(
+            static fn (\Filament\Tables\Table $table): \Filament\Tables\Table => $table->deferColumnManager(false),
+        );
     }
 
     private function registerTagModel(): void
