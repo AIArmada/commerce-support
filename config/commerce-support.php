@@ -48,6 +48,7 @@ return [
     'filament' => [
         'navigation' => [
             'enabled' => true,
+            'top_bar' => false,
             'groups' => [],
             'packages' => [],
             'items' => [],

@@ -134,6 +134,10 @@ final class CommerceNavigation
             $panel->navigation(static fn (): NavigationBuilder => self::builder());
         }
 
+        if (self::topBarEnabled() && method_exists($panel, 'topNavigation')) {
+            $panel->topNavigation();
+        }
+
         return $panel;
     }
 
@@ -279,6 +283,11 @@ final class CommerceNavigation
     private static function enabled(): bool
     {
         return (bool) self::navigationConfig('enabled', true);
+    }
+
+    private static function topBarEnabled(): bool
+    {
+        return (bool) self::navigationConfig('top_bar', false);
     }
 
     /**
