@@ -16,6 +16,7 @@ use AIArmada\CommerceSupport\Support\PublicHttpUrlGuard;
 use AIArmada\CommerceSupport\Support\SystemPublicDnsResolver;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingEngine;
+use Filament\Tables\Table;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 use OwenIt\Auditing\AuditingServiceProvider;
@@ -91,12 +92,12 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     private function configureFilamentTables(): void
     {
-        if (! class_exists(\Filament\Tables\Table::class)) {
+        if (! class_exists(Table::class)) {
             return;
         }
 
-        \Filament\Tables\Table::configureUsing(
-            static fn (\Filament\Tables\Table $table): \Filament\Tables\Table => $table->deferColumnManager(false),
+        Table::configureUsing(
+            static fn (Table $table): Table => $table->deferColumnManager(false),
         );
     }
 
