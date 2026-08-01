@@ -143,6 +143,17 @@ final class CommerceNavigation
 
     public static function builder(): NavigationBuilder
     {
+        $request = app()->bound('request') ? request() : null;
+        $cacheKey = 'commerce-support.filament.navigation.builder';
+
+        if ($request?->attributes->has($cacheKey)) {
+            $cachedBuilder = $request->attributes->get($cacheKey);
+
+            if ($cachedBuilder instanceof NavigationBuilder) {
+                return $cachedBuilder;
+            }
+        }
+
         $panel = Filament::getCurrentOrDefaultPanel();
         $registeredGroups = [
             ...$panel->getNavigationGroups(),
@@ -164,8 +175,12 @@ final class CommerceNavigation
             ->map(fn (NavigationGroup $g): NavigationGroup => $g->collapsible(true))
             ->all();
 
-        return (new NavigationBuilder)
+        $builder = (new NavigationBuilder)
             ->groups($groups);
+
+        $request?->attributes->set($cacheKey, $builder);
+
+        return $builder;
     }
 
     public static function configureNavigationItem(NavigationItem $item, string $component): NavigationItem
