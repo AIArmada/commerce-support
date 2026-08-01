@@ -6,6 +6,19 @@ title: Traits & Utilities
 
 Commerce Support provides several utility traits and helper classes for common patterns across commerce packages.
 
+## String similarity
+
+`StringSimilarity` centralizes generic text normalization and edit-distance/similar-text scoring:
+
+```php
+use AIArmada\CommerceSupport\Support\StringSimilarity;
+
+$normalized = StringSimilarity::normalize('Ál-MuTtaqīn');
+$score = StringSimilarity::score($normalized, 'al muttaqin');
+```
+
+Callers retain their own candidate fields, comparability rules, minimum scores, maximum distances, and search-index policies; this utility only supplies the reusable mechanics.
+
 ## Contract Test Traits
 
 Three test traits to verify that implementing packages comply with core contracts.
