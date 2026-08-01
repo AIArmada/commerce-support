@@ -370,6 +370,22 @@ php artisan migrate:rollback --step=1
 
 ## Performance Issues
 
+### FileUpload fields remain as native file inputs inside Filament tabs
+
+Filament v5's `FileUpload` component can miss the transition from a hidden Schema
+Tab panel to a visible panel. When that happens, FilePond initialization may wait
+for a later browser resize, even though the upload asset and media URL are valid.
+
+`commerce-support` registers the bounded `file-upload-tabs` compatibility asset
+automatically when Filament is installed. Every `aiarmada/filament-*` adapter
+already depends on this package, so adapters should not add a dependency on the
+feature-specific `aiarmada/filament-commerce-support` plugin just to receive the
+workaround.
+
+After upgrading Filament, reproduce a form containing FileUpload fields inside
+tabs. If the upstream lifecycle is fixed, remove the compatibility asset only
+after verifying both initial page load and tab activation without a manual resize.
+
 ### Slow Owner Scope Queries
 
 **Solution:** Add database index.

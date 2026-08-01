@@ -16,6 +16,8 @@ use AIArmada\CommerceSupport\Support\PublicHttpUrlGuard;
 use AIArmada\CommerceSupport\Support\SystemPublicDnsResolver;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingEngine;
+use Filament\Support\Assets\Js;
+use Filament\Support\Facades\FilamentAsset;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
@@ -84,10 +86,29 @@ final class SupportServiceProvider extends PackageServiceProvider
     public function bootingPackage(): void
     {
         $this->configureFilamentTables();
+        $this->registerFilamentAssets();
         $this->registerTagModel();
         $this->loadDependencyMigrations();
         $this->validateMorphKeyType();
         $this->ensureOwnerResolverIsConfiguredWhenOwnerModeEnabled();
+    }
+
+    private function registerFilamentAssets(): void
+    {
+        if (! class_exists(FilamentAsset::class) || ! class_exists(Js::class)) {
+            return;
+        }
+
+        // Filament 5's FileUpload initializes FilePond only after its root is visible.
+        // Schema Tabs hide inactive panels with visibility/position CSS, and activating
+        // a tab may not change dimensions, so Filament's observers can miss the change.
+        // A later browser resize then triggers initialization, which explains the bug.
+        // Keep this compatibility hook at the shared Filament integration seam so every
+        // AIArmada Filament adapter receives the fix without modifying vendor files.
+        // Re-test it against Filament upgrades before removing it.
+        FilamentAsset::register([
+            Js::make('file-upload-tabs', __DIR__ . '/../resources/js/file-upload-tabs.js'),
+        ], 'aiarmada/commerce-support');
     }
 
     private function configureFilamentTables(): void
