@@ -13,11 +13,6 @@
                 return;
             }
 
-            if (!root._x_dataStack) {
-                root._x_ignore = false;
-                window.Alpine.initTree(root);
-            }
-
             const component = root._x_dataStack?.[0];
 
             if (component && !component.pond && typeof component.init === 'function') {
