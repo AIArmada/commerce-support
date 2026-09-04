@@ -18,7 +18,7 @@ use RuntimeException;
  *
  * Jobs using this trait should include either:
  * - a public owner-bearing model property,
- * - explicit public `ownerType` / `ownerId` (or snake_case equivalents) payload fields,
+ * - explicit public `ownerType` / `ownerId` payload fields,
  * - or implement {@see OwnerScopedJob} for fully explicit owner context payloads.
  */
 trait OwnerContextJob

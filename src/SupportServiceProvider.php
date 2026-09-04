@@ -10,6 +10,7 @@ use AIArmada\CommerceSupport\Contracts\PublicDnsResolver;
 use AIArmada\CommerceSupport\Http\PinnedHttpClient;
 use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
+use AIArmada\CommerceSupport\Support\Payment\ActorPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\GuestPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\PaymentSubjectResolver;
 use AIArmada\CommerceSupport\Support\PublicHttpUrlGuard;
@@ -103,7 +104,7 @@ final class SupportServiceProvider extends PackageServiceProvider
         // Schema Tabs hide inactive panels with visibility/position CSS, and activating
         // a tab may not change dimensions, so Filament's observers can miss the change.
         // A later browser resize then triggers initialization, which explains the bug.
-        // Keep this compatibility hook at the shared Filament integration seam so every
+        // Keep this shared hook at the Filament integration seam so every
         // AIArmada Filament adapter receives the fix without modifying vendor files.
         // Re-test it against Filament upgrades before removing it.
         FilamentAsset::register([
@@ -423,6 +424,7 @@ final class SupportServiceProvider extends PackageServiceProvider
     {
         $this->app->singleton(PaymentSubjectResolver::class, function (): PaymentSubjectResolver {
             $resolver = new PaymentSubjectResolver;
+            $resolver->register(new ActorPaymentSubjectDriver);
             $resolver->register(new GuestPaymentSubjectDriver);
 
             return $resolver;

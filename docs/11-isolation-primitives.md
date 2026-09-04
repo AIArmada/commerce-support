@@ -220,7 +220,7 @@ Best-practice job shape is explicit and typed:
 - Return `OwnerJobContext`
 - Use camelCase PHP fields (`ownerType`, `ownerId`, `ownerIsGlobal`)
 
-The trait keeps a compatibility fallback for snake_case payload field names where needed.
+The trait accepts the typed camelCase fields shown above for explicit job payloads.
 
 ## OwnerTuple utilities
 

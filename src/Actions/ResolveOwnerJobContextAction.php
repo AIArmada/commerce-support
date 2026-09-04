@@ -32,15 +32,15 @@ final class ResolveOwnerJobContextAction
             $value = $property->getValue($job);
             $propertyName = $property->getName();
 
-            if (($propertyName === 'ownerType' || $propertyName === 'owner_type') && is_string($value) && $value !== '') {
+            if ($propertyName === 'ownerType' && is_string($value) && $value !== '') {
                 $ownerType = $value;
             }
 
-            if (($propertyName === 'ownerId' || $propertyName === 'owner_id') && (is_string($value) || is_int($value)) && $value !== '') {
+            if ($propertyName === 'ownerId' && (is_string($value) || is_int($value)) && $value !== '') {
                 $ownerId = $value;
             }
 
-            if (($propertyName === 'ownerIsGlobal' || $propertyName === 'owner_is_global') && $value === true) {
+            if ($propertyName === 'ownerIsGlobal' && $value === true) {
                 $ownerIsGlobal = true;
             }
 
