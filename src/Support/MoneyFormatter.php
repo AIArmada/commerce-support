@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Support;
 
 use Akaunting\Money\Currency;
-use OutOfBoundsException;
+use InvalidArgumentException;
 
 /**
  * Shared money formatting helpers for all commerce packages.
@@ -42,21 +42,10 @@ final class MoneyFormatter
     {
         $currency = self::normalizeCurrency($currency);
         $minor = self::normalizeMinor($amountInMinorUnits);
-        $currencyPrecision = self::precisionFor($currency);
+        $decimal = self::decimalFromMinor($minor, $currency, $precision);
+        $symbol = self::symbol($currency);
 
-        if ($precision !== null && $precision !== $currencyPrecision) {
-            return self::symbol($currency) . self::decimalFromMinor($minor, $currency, $precision);
-        }
-
-        if (isset(self::SYMBOL_OVERRIDES[$currency])) {
-            return self::symbol($currency) . self::decimalFromMinor($minor, $currency, $precision);
-        }
-
-        try {
-            return money($minor, $currency, false)->format();
-        } catch (OutOfBoundsException) {
-            return mb_strtoupper($currency) . ' ' . self::decimalFromMinor($minor, $currency, $precision);
-        }
+        return self::prefixSymbol($symbol, $decimal);
     }
 
     public static function formatMinorWithCode(int | float | string $amountInMinorUnits, ?string $currency = null, ?int $precision = null): string
@@ -75,7 +64,14 @@ final class MoneyFormatter
             return self::symbol($currency) . self::decimalFromMajor($amountInMajorUnits, $currency, $precision);
         }
 
-        return self::formatMinor(self::majorToMinor($amountInMajorUnits, $currencyPrecision), $currency, $precision);
+        return self::formatMinor(self::majorToMinorValue($amountInMajorUnits, $currencyPrecision), $currency, $precision);
+    }
+
+    public static function majorToMinor(int | float | string $amountInMajorUnits, ?string $currency = null): int
+    {
+        $currency = self::normalizeCurrency($currency);
+
+        return self::majorToMinorValue($amountInMajorUnits, self::precisionFor($currency));
     }
 
     public static function formatMajorWithCode(int | float | string $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
@@ -181,9 +177,48 @@ final class MoneyFormatter
         return str_replace([',', ' '], '', mb_trim($value));
     }
 
-    private static function majorToMinor(int | float | string $amountInMajorUnits, int $precision): int
+    private static function prefixSymbol(string $symbol, string $decimal): string
     {
-        return (int) round(self::normalizeMajor($amountInMajorUnits) * self::minorScale($precision));
+        if (str_starts_with($decimal, '-')) {
+            return '-' . $symbol . mb_substr($decimal, 1);
+        }
+
+        return $symbol . $decimal;
+    }
+
+    private static function majorToMinorValue(int | float | string $amountInMajorUnits, int $precision): int
+    {
+        if (is_float($amountInMajorUnits)) {
+            if (! is_finite($amountInMajorUnits)) {
+                throw new InvalidArgumentException('Money amount must be finite.');
+            }
+
+            $normalized = sprintf('%.14F', $amountInMajorUnits);
+        } else {
+            $normalized = (string) $amountInMajorUnits;
+        }
+
+        $normalized = self::normalizeNumericString($normalized);
+
+        if ($normalized === '') {
+            return 0;
+        }
+
+        if (preg_match('/^([+-]?)(\d+)(?:\.(\d+))?$/', $normalized, $matches) !== 1) {
+            throw new InvalidArgumentException('Money amount must be a valid decimal number.');
+        }
+
+        $whole = mb_ltrim($matches[2], '0') ?: '0';
+        $fraction = mb_str_pad($matches[3] ?? '', $precision + 1, '0');
+        $minorFraction = $precision > 0 ? mb_substr($fraction, 0, $precision) : '';
+        $minor = ((int) $whole * self::minorScale($precision))
+            + ($minorFraction === '' ? 0 : (int) $minorFraction);
+
+        if (($fraction[$precision] ?? '0') >= '5') {
+            $minor++;
+        }
+
+        return $matches[1] === '-' ? -$minor : $minor;
     }
 
     private static function minorScale(int $precision): int

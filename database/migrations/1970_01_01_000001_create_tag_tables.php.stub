@@ -16,7 +16,7 @@ return new class extends Migration
 
         $jsonType = commerce_json_column_type('commerce-support', 'jsonb');
 
-        Schema::create('tags', function (Blueprint $table) use ($jsonType): void {
+        commerce_schema_create_if_missing('tags', function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('type')->nullable()->index();
             $table->{$jsonType}('name');
@@ -26,7 +26,7 @@ return new class extends Migration
             $table->timestampsTz();
         });
 
-        Schema::create('taggables', function (Blueprint $table): void {
+        commerce_schema_create_if_missing('taggables', function (Blueprint $table): void {
             $table->foreignUuid('tag_id');
             $table->foreignUuid('taggable_id');
             $table->string('taggable_type');

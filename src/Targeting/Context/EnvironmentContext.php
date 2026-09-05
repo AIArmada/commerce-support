@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Targeting\Context;
 
-use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 
 /**
@@ -70,9 +70,9 @@ readonly class EnvironmentContext
         );
     }
 
-    public function getCurrentTime(): Carbon
+    public function getCurrentTime(): CarbonImmutable
     {
-        return Carbon::now($this->timezone);
+        return CarbonImmutable::now($this->timezone);
     }
 
     public function isChannel(string $channel): bool

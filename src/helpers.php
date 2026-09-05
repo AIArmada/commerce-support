@@ -1,14 +1,16 @@
 <?php
 
 declare(strict_types=1);
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Support\Facades\Schema;
 
 if (! function_exists('commerce_json_column_type')) {
     /**
      * Resolve the preferred JSON column type for a package.
      *
      * @param  string|null  $packageKey  e.g. 'vouchers', 'chip', 'docs' (used to read {PKG}_JSON_COLUMN_TYPE)
-     * @param  string  $default  Fallback when no env is set
+     * @param  string  $default  Fallback when no package configuration is available
      */
     function commerce_json_column_type(?string $packageKey = null, string $default = 'jsonb'): string
     {
@@ -28,7 +30,31 @@ if (! function_exists('commerce_json_column_type')) {
             return $global;
         }
 
+        if ($packageKey !== null) {
+            $configured = config($packageKey . '.database.json_column_type');
+
+            if (is_string($configured) && $configured !== '') {
+                return $configured;
+            }
+        }
+
         return $default;
+    }
+}
+
+if (! function_exists('commerce_schema_create_if_missing')) {
+    /**
+     * Create a table only when it does not already exist.
+     *
+     * @param  Closure(Blueprint): void  $callback
+     */
+    function commerce_schema_create_if_missing(string $table, Closure $callback): void
+    {
+        if (Schema::hasTable($table)) {
+            return;
+        }
+
+        Schema::create($table, $callback);
     }
 }
 

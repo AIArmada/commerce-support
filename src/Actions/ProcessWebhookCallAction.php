@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Actions;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Spatie\WebhookClient\Models\WebhookCall;
@@ -47,7 +48,7 @@ final class ProcessWebhookCallAction
                 if ($isDuplicateProcessedEvent($locked, $payload, $eventType)) {
                     $locked->update([
                         'status' => 'processed',
-                        'processed_at' => now(),
+                        'processed_at' => CarbonImmutable::now(),
                     ]);
 
                     return;
@@ -57,13 +58,13 @@ final class ProcessWebhookCallAction
 
                 $locked->update([
                     'status' => 'processed',
-                    'processed_at' => now(),
+                    'processed_at' => CarbonImmutable::now(),
                 ]);
             });
         } catch (Throwable $e) {
             $webhookCall->update([
                 'status' => 'failed',
-                'failed_at' => now(),
+                'failed_at' => CarbonImmutable::now(),
                 'exception' => (string) $e,
             ]);
 

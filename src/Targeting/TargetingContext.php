@@ -8,7 +8,7 @@ use AIArmada\CommerceSupport\Targeting\Context\CartContext;
 use AIArmada\CommerceSupport\Targeting\Context\EnvironmentContext;
 use AIArmada\CommerceSupport\Targeting\Context\UserContext;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingContextInterface;
-use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -385,11 +385,11 @@ readonly class TargetingContext implements TargetingContextInterface
         return null;
     }
 
-    public function getCurrentTime(?string $timezone = null): Carbon
+    public function getCurrentTime(?string $timezone = null): CarbonImmutable
     {
         $tz = $timezone ?? $this->getTimezone();
 
-        return Carbon::now($tz);
+        return CarbonImmutable::now($tz);
     }
 
     public function getTimezone(): string

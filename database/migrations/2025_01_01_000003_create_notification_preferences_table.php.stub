@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $jsonType = commerce_json_column_type('commerce-support', 'jsonb');
 
-        Schema::create(config('commerce-support.database.tables.notification_preferences', 'notification_preferences'), function (Blueprint $table) use ($jsonType): void {
+        commerce_schema_create_if_missing(config('commerce-support.database.tables.notification_preferences', 'notification_preferences'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('user_type')->index();
             $table->string('user_id')->index();

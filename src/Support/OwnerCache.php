@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Support;
 
 use AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable;
+use Carbon\CarbonImmutable;
 use DateInterval;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +28,7 @@ use Throwable;
  * // Get/put with owner scoping
  * $prefs = OwnerCache::get($owner, 'user.preferences');
  *
- * OwnerCache::put($owner, 'user.preferences', $preferences, now()->addHour());
+ * OwnerCache::put($owner, 'user.preferences', $preferences, CarbonImmutable::now()->addHour());
  *
  * // Forget owner-scoped key
  * OwnerCache::forget($owner, 'user.preferences');

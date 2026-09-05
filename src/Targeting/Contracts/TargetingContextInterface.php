@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Targeting\Contracts;
 
-use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
@@ -97,7 +97,7 @@ interface TargetingContextInterface
     /**
      * Get current time in the specified or detected timezone.
      */
-    public function getCurrentTime(?string $timezone = null): Carbon;
+    public function getCurrentTime(?string $timezone = null): CarbonImmutable;
 
     /**
      * Get the timezone for time-based rules.

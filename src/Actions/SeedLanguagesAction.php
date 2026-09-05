@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Actions;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -18,7 +19,7 @@ class SeedLanguagesAction
         }
 
         $table = config('commerce-support.database.tables.languages', 'languages');
-        $now = now()->toIso8601ZuluString();
+        $now = CarbonImmutable::now()->toIso8601ZuluString();
         $created = 0;
         $updated = 0;
         $skipped = 0;

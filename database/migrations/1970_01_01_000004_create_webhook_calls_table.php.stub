@@ -19,7 +19,7 @@ return new class extends Migration
 
         $jsonType = (string) commerce_json_column_type('commerce-support', 'jsonb');
 
-        Schema::create('webhook_calls', function (Blueprint $table) use ($jsonType): void {
+        commerce_schema_create_if_missing('webhook_calls', function (Blueprint $table) use ($jsonType): void {
             $table->bigIncrements('id');
 
 

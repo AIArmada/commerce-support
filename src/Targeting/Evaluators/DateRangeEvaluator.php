@@ -8,7 +8,6 @@ use AIArmada\CommerceSupport\Targeting\Contracts\TargetingContextInterface;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingRuleEvaluator;
 use AIArmada\CommerceSupport\Targeting\Enums\TargetingRuleType;
 use AIArmada\CommerceSupport\Targeting\Exceptions\TargetingRuleEvaluationException;
-use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Throwable;
 
@@ -79,7 +78,7 @@ class DateRangeEvaluator implements TargetingRuleEvaluator
     /**
      * @param  array<string, mixed>  $rule
      */
-    private function evaluateBetween(array $rule, Carbon $now): bool
+    private function evaluateBetween(array $rule, CarbonImmutable $now): bool
     {
         $startDate = $this->parseDate($rule['start'] ?? $rule['start_date'] ?? null, 'start');
         $endDate = $this->parseDate($rule['end'] ?? $rule['end_date'] ?? null, 'end');
@@ -90,7 +89,7 @@ class DateRangeEvaluator implements TargetingRuleEvaluator
     /**
      * @param  array<string, mixed>  $rule
      */
-    private function evaluateBefore(array $rule, Carbon $now): bool
+    private function evaluateBefore(array $rule, CarbonImmutable $now): bool
     {
         $date = $this->parseDate($rule['date'] ?? $rule['end'] ?? $rule['end_date'] ?? null, 'date');
 
@@ -100,7 +99,7 @@ class DateRangeEvaluator implements TargetingRuleEvaluator
     /**
      * @param  array<string, mixed>  $rule
      */
-    private function evaluateAfter(array $rule, Carbon $now): bool
+    private function evaluateAfter(array $rule, CarbonImmutable $now): bool
     {
         $date = $this->parseDate($rule['date'] ?? $rule['start'] ?? $rule['start_date'] ?? null, 'date');
 
