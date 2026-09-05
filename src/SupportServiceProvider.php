@@ -21,6 +21,7 @@ use Carbon\CarbonImmutable;
 use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
 use Filament\Tables\Table;
+use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
@@ -47,7 +48,6 @@ final class SupportServiceProvider extends PackageServiceProvider
         $package
             ->name('commerce-support')
             ->hasConfigFile('commerce-support')
-            ->hasViews('commerce-support')
             ->hasMigrations([
                 '2025_01_01_000001_create_saved_searches_table',
                 '2025_01_01_000002_create_reports_table',
@@ -66,6 +66,10 @@ final class SupportServiceProvider extends PackageServiceProvider
                 Commands\SeedCurrenciesCommand::class,
                 Commands\SeedTimezonesCommand::class,
             ]);
+
+        if (class_exists(Widget::class)) {
+            $package->hasViews('commerce-support');
+        }
     }
 
     public function packageRegistered(): void
