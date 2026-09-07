@@ -24,4 +24,14 @@ final class AuditableModelRegistry
     {
         return $this->models;
     }
+
+    /**
+     * Flush registered models at an application lifecycle boundary.
+     *
+     * @internal Octane lifecycle integration only.
+     */
+    public function flush(): void
+    {
+        $this->models = [];
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -17,12 +18,11 @@ return new class extends Migration
         $connection = config('audit.drivers.database.connection') ?: config('database.default');
         $table = config('audit.drivers.database.table') ?: 'audits';
         $morphPrefix = config('audit.user.morph_prefix', 'user');
-        $desiredMorphKeyType = (string) config('commerce-support.database.morph_key_type', 'uuid');
         $userIdColumn = $morphPrefix . '_id';
         $userTypeColumn = $morphPrefix . '_type';
         $legacyUserIdColumn = 'legacy_' . $userIdColumn;
 
-        if ($desiredMorphKeyType === 'int') {
+        if (SchemaBuilder::$defaultMorphKeyType === 'int') {
             return;
         }
 
@@ -46,14 +46,8 @@ return new class extends Migration
             });
         }
 
-        Schema::connection($connection)->table($table, function (Blueprint $table) use ($desiredMorphKeyType, $userIdColumn): void {
-            if ($desiredMorphKeyType === 'ulid') {
-                $table->ulid($userIdColumn)->nullable();
-
-                return;
-            }
-
-            $table->uuid($userIdColumn)->nullable();
+        Schema::connection($connection)->table($table, function (Blueprint $table) use ($morphPrefix): void {
+            commerce_morph_key($table, $morphPrefix);
         });
 
         Schema::connection($connection)->table($table, function (Blueprint $table) use ($userIdColumn, $userTypeColumn): void {

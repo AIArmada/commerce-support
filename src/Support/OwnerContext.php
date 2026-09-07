@@ -96,6 +96,22 @@ final class OwnerContext
         return self::readState()['hasOverride'];
     }
 
+    /**
+     * Flush owner state at an application lifecycle boundary.
+     *
+     * @internal Octane lifecycle integration only.
+     */
+    public static function flushState(): void
+    {
+        self::$fallback = ['hasOverride' => false, 'override' => null];
+
+        $request = self::httpRequest();
+
+        if ($request !== null) {
+            $request->attributes->remove(self::REQUEST_KEY);
+        }
+    }
+
     public static function isExplicitGlobal(): bool
     {
         $state = self::readState();

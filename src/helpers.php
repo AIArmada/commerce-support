@@ -1,9 +1,17 @@
 <?php
 
 declare(strict_types=1);
+
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Schema\Builder as SchemaBuilder;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Schema;
+
+/*
+|--------------------------------------------------------------------------
+| Database Helpers
+|--------------------------------------------------------------------------
+*/
 
 if (! function_exists('commerce_json_column_type')) {
     /**
@@ -42,6 +50,30 @@ if (! function_exists('commerce_json_column_type')) {
     }
 }
 
+if (! function_exists('commerce_morph_key')) {
+    /**
+     * Add a nullable morph ID using Laravel's configured default morph key type.
+     */
+    function commerce_morph_key(Blueprint $table, string $prefix): void
+    {
+        $column = "{$prefix}_id";
+
+        if (SchemaBuilder::$defaultMorphKeyType === 'ulid') {
+            $table->ulid($column)->nullable();
+
+            return;
+        }
+
+        if (SchemaBuilder::$defaultMorphKeyType === 'uuid') {
+            $table->uuid($column)->nullable();
+
+            return;
+        }
+
+        $table->unsignedBigInteger($column)->nullable();
+    }
+}
+
 if (! function_exists('commerce_schema_create_if_missing')) {
     /**
      * Create a table only when it does not already exist.
@@ -57,6 +89,12 @@ if (! function_exists('commerce_schema_create_if_missing')) {
         Schema::create($table, $callback);
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| Framework Helpers
+|--------------------------------------------------------------------------
+*/
 
 if (! function_exists('commerce_csrf_middleware')) {
     /**
@@ -75,6 +113,12 @@ if (! function_exists('commerce_csrf_middleware')) {
         return VerifyCsrfToken::class;
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| Money Helpers
+|--------------------------------------------------------------------------
+*/
 
 if (! function_exists('currency_symbol')) {
     /**

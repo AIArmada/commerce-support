@@ -18,21 +18,11 @@ return new class extends Migration
 
         Schema::connection($connection)->create($table, function (Blueprint $table): void {
             $morphPrefix = config('audit.user.morph_prefix', 'user');
-            $morphKeyType = (string) config('commerce-support.database.morph_key_type', 'uuid');
 
             $table->bigIncrements('id');
             $table->string($morphPrefix . '_type')->nullable();
-
-            if ($morphKeyType === 'int') {
-                $table->unsignedBigInteger($morphPrefix . '_id')->nullable();
-                $table->morphs('auditable');
-            } elseif ($morphKeyType === 'ulid') {
-                $table->ulid($morphPrefix . '_id')->nullable();
-                $table->ulidMorphs('auditable');
-            } else {
-                $table->uuid($morphPrefix . '_id')->nullable();
-                $table->uuidMorphs('auditable');
-            }
+            commerce_morph_key($table, $morphPrefix);
+            $table->morphs('auditable');
 
             $table->string('event');
             $table->text('old_values')->nullable();
