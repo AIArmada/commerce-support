@@ -31,7 +31,6 @@ use RuntimeException;
 use Spatie\Activitylog\ActivitylogServiceProvider;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
-use Spatie\LaravelSettings\LaravelSettingsServiceProvider;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Spatie\WebhookClient\WebhookClientServiceProvider;
 
@@ -137,17 +136,13 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     private function loadDependencyMigrations(): void
     {
-        $settingsMigrationPath = $this->resolveDependencyPath(
-            LaravelSettingsServiceProvider::class,
-            'database/migrations/create_settings_table.php.stub',
-            'vendor/spatie/laravel-settings/database/migrations/create_settings_table.php.stub'
-        );
+        $settingsMigrationPath = __DIR__ . '/../database/migrations/1970_01_01_000000_create_settings_table.php';
 
-        if ($settingsMigrationPath !== null && ! $this->tableExists('settings')) {
-            ConditionalMigrationLoader::loadFileIfMissing(
-                $this,
-                $settingsMigrationPath
-            );
+        $publishedSettingsMigrations = glob(database_path('migrations/*_create_settings_table.php'));
+
+        if (is_file($settingsMigrationPath)
+            && (! is_array($publishedSettingsMigrations) || $publishedSettingsMigrations === [])) {
+            $this->loadMigrationsFrom($settingsMigrationPath);
         }
 
         $auditsMigrationPath = $this->resolveCommerceSupportAuditMigrationPath()
