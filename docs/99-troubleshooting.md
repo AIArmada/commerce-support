@@ -117,9 +117,12 @@ $gateway->createPayment($cart, ['amount' => 99.99]);
 // ✅ Correct - cents
 $gateway->createPayment($cart, ['amount' => 9999]);
 
-// ✅ Use normalizer
+// ✅ Normalize an integer minor-unit value
 use AIArmada\CommerceSupport\Support\MoneyNormalizer;
-$amount = MoneyNormalizer::toCents($input);
+$amount = MoneyNormalizer::toCents(9999);
+
+// For a major-unit boundary, round explicitly before normalization.
+$amount = MoneyNormalizer::toCents((int) round((float) $input * 100, 0, PHP_ROUND_HALF_UP));
 ```
 
 ### PaymentStatus Not Updating

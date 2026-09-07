@@ -23,15 +23,16 @@ use UnitEnum;
 final class CommerceNavigation
 {
     /**
+     * @param  array<string | int, mixed>|null  $configuredGroups
      * @return array<NavigationGroup>
      */
-    public static function groups(): array
+    public static function groups(?array $configuredGroups = null): array
     {
         if (! self::enabled() || ! class_exists(NavigationGroup::class)) {
             return [];
         }
 
-        $configGroups = self::navigationConfig('groups', []);
+        $configGroups = $configuredGroups ?? self::navigationConfig('groups', []);
         $groups = [];
 
         if (is_array($configGroups)) {
@@ -40,35 +41,35 @@ final class CommerceNavigation
             $groups = [];
         }
 
-        // Auto-discover group names from panel resources/pages so ALL sidebar
-        // groups get a NavigationGroup with config sort values, not just the
-        // ones explicitly defined in config.
-        try {
-            $panel = Filament::getCurrentOrDefaultPanel();
-        } catch (Throwable) {
-            $panel = null;
-        }
+        // Auto-discover group names from every registered navigation component
+        // so all sidebar groups receive the same canonical configuration.
+        foreach (self::registeredNavigationComponents() as $class) {
+            if (! method_exists($class, 'getNavigationGroup')) {
+                continue;
+            }
 
-        if ($panel !== null) {
-            $extractGroup = static function (string $class) use (&$groups): void {
-                if (! method_exists($class, 'getNavigationGroup')) {
-                    return;
-                }
-                $g = $class::getNavigationGroup();
-                if (! is_string($g) || $g === '' || array_key_exists($g, $groups)) {
-                    return;
-                }
-                $groups[$g] = ['label' => $g, 'collapsible' => true];
-            };
-            foreach ($panel->getResources() as $resource) {
-                $extractGroup(is_string($resource) ? $resource : $resource::class);
+            $group = $class::getNavigationGroup();
+
+            if (! is_string($group) || $group === '') {
+                continue;
             }
-            foreach ($panel->getPages() as $page) {
-                $extractGroup(is_string($page) ? $page : $page::class);
+
+            $alreadyConfigured = false;
+
+            foreach ($groups as $key => $definition) {
+                $label = is_array($definition)
+                    ? ($definition['label'] ?? $key)
+                    : (is_string($definition) ? $definition : $key);
+
+                if ((string) $key === $group || $label === $group) {
+                    $alreadyConfigured = true;
+
+                    break;
+                }
             }
-            foreach ($panel->getPageConfigurations() as $configuration) {
-                $page = $configuration->getPage();
-                $extractGroup(is_string($page) ? $page : get_class($page));
+
+            if (! $alreadyConfigured) {
+                $groups[$group] = ['label' => $group, 'collapsible' => true];
             }
         }
 
@@ -114,6 +115,49 @@ final class CommerceNavigation
             })
             ->filter()
             ->all();
+    }
+
+    /**
+     * Return every resource and page registered on the active panel, including
+     * configured resource and page variants.
+     *
+     * @return list<class-string>
+     */
+    public static function registeredNavigationComponents(): array
+    {
+        try {
+            $panel = Filament::getCurrentOrDefaultPanel();
+        } catch (Throwable) {
+            return [];
+        }
+
+        $components = [];
+
+        $add = static function (mixed $component) use (&$components): void {
+            $class = is_string($component) ? $component : (is_object($component) ? get_class($component) : null);
+
+            if (is_string($class) && $class !== '') {
+                $components[$class] = true;
+            }
+        };
+
+        foreach ($panel->getResources() as $resource) {
+            $add($resource);
+        }
+
+        foreach ($panel->getPages() as $page) {
+            $add($page);
+        }
+
+        foreach ($panel->getPageConfigurations() as $configuration) {
+            $add($configuration->getPage());
+        }
+
+        foreach ($panel->getResourceConfigurations() as $configuration) {
+            $add($configuration->getResource());
+        }
+
+        return array_keys($components);
     }
 
     public static function configurePanel(object $panel): object

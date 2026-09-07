@@ -277,19 +277,20 @@ public static function ownerScopeConfig(): OwnerScopeConfig
 
 ## MoneyNormalizer
 
-Consistent money handling:
+Money values enter shared helpers as integer minor units. Convert major-unit
+input at the boundary that receives it, choosing and documenting the rounding
+policy there.
 
 ```php
 use AIArmada\CommerceSupport\Support\MoneyNormalizer;
 
-// Convert various inputs to cents
-MoneyNormalizer::toCents(99.99);       // 9999
-MoneyNormalizer::toCents('99.99');     // 9999
-MoneyNormalizer::toCents('$99.99');    // 9999
-MoneyNormalizer::toCents('€99.99');    // 9999
-MoneyNormalizer::toCents('RM 99.99');  // 9999
-MoneyNormalizer::toCents(9999);        // 9999 (assumes cents)
-MoneyNormalizer::toCents(null);        // 0
+// Assert an already-normalized integer minor-unit value
+MoneyNormalizer::toCents(9999);        // 9999
+
+// Convert a decimal major-unit boundary explicitly before normalization.
+$majorAmount = '99.995';
+$minorAmount = (int) round((float) $majorAmount * 100, 0, PHP_ROUND_HALF_UP); // 10000
+$minorAmount = MoneyNormalizer::toCents($minorAmount);
 
 // Convert cents to decimal
 MoneyNormalizer::toDollars(9999);      // 99.99
@@ -299,27 +300,9 @@ MoneyNormalizer::format(9999, 'USD');  // $99.99
 MoneyNormalizer::format(9999, 'MYR');  // RM99.99
 ```
 
-### Supported Currency Symbols
-
-Automatically stripped during normalization:
-
-| Symbol | Currency |
-|--------|----------|
-| `$` | USD, etc. |
-| `€` | EUR |
-| `£` | GBP |
-| `¥` | JPY/CNY |
-| `₹` | INR |
-| `RM` | MYR |
-| `₱` | PHP |
-| `₩` | KRW |
-| `฿` | THB |
-| `₫` | VND |
-| `₪` | ILS |
-| `₨` | PKR/NPR |
-| `R$` | BRL |
-| `kr` | SEK/NOK/DKK |
-| `zł` | PLN |
+`MoneyNormalizer::toCents()` does not parse currency symbols or decimal input.
+Normalize those external values at their integration boundary first, then pass
+the resulting integer minor units to the shared helper.
 
 ## JSON Column Helper
 

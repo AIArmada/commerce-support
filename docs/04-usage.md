@@ -41,7 +41,7 @@ OwnerContext::withOwner($owner, function () use ($payload): void {
 use AIArmada\CommerceSupport\Support\MoneyNormalizer;
 use AIArmada\CommerceSupport\Support\OwnerCache;
 
-$amount = MoneyNormalizer::toMinorUnits('99.90', 'MYR');
+$amount = MoneyNormalizer::toCents(9990);
 
 $summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), function () use ($cart) {
     return $cart->computeSummary();

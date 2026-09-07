@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Support;
 
 use Akaunting\Money\Currency;
-use InvalidArgumentException;
 
 /**
  * Shared money formatting helpers for all commerce packages.
@@ -38,24 +37,39 @@ final class MoneyFormatter
         'CAD' => 'C$',
     ];
 
-    public static function formatMinor(int | float | string $amountInMinorUnits, ?string $currency = null, ?int $precision = null): string
+    public static function formatMinor(int $amountInMinorUnits, ?string $currency = null, ?int $precision = null): string
     {
         $currency = self::normalizeCurrency($currency);
-        $minor = self::normalizeMinor($amountInMinorUnits);
-        $decimal = self::decimalFromMinor($minor, $currency, $precision);
-        $symbol = self::symbol($currency);
 
-        return self::prefixSymbol($symbol, $decimal);
+        return self::formatMinorWithScale(
+            $amountInMinorUnits,
+            self::precisionFor($currency),
+            $currency,
+            $precision,
+        );
     }
 
-    public static function formatMinorWithCode(int | float | string $amountInMinorUnits, ?string $currency = null, ?int $precision = null): string
+    public static function formatMinorWithScale(
+        int $amountInMinorUnits,
+        int $minorUnitPrecision,
+        ?string $currency = null,
+        ?int $precision = null,
+    ): string {
+        $currency = self::normalizeCurrency($currency);
+        $precision ??= $minorUnitPrecision;
+        $decimal = number_format($amountInMinorUnits / self::minorScale($minorUnitPrecision), $precision, '.', ',');
+
+        return self::prefixSymbol(self::symbol($currency), $decimal);
+    }
+
+    public static function formatMinorWithCode(int $amountInMinorUnits, ?string $currency = null, ?int $precision = null): string
     {
         $currency = self::normalizeCurrency($currency);
 
         return self::decimalFromMinor($amountInMinorUnits, $currency, $precision) . ' ' . mb_strtoupper($currency);
     }
 
-    public static function formatMajor(int | float | string $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
+    public static function formatMajor(int $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
     {
         $currency = self::normalizeCurrency($currency);
         $currencyPrecision = self::precisionFor($currency);
@@ -64,39 +78,38 @@ final class MoneyFormatter
             return self::symbol($currency) . self::decimalFromMajor($amountInMajorUnits, $currency, $precision);
         }
 
-        return self::formatMinor(self::majorToMinorValue($amountInMajorUnits, $currencyPrecision), $currency, $precision);
+        return self::formatMinor($amountInMajorUnits * self::minorScale($currencyPrecision), $currency, $precision);
     }
 
-    public static function majorToMinor(int | float | string $amountInMajorUnits, ?string $currency = null): int
+    public static function majorToMinor(int $amountInMajorUnits, ?string $currency = null): int
     {
         $currency = self::normalizeCurrency($currency);
 
-        return self::majorToMinorValue($amountInMajorUnits, self::precisionFor($currency));
+        return $amountInMajorUnits * self::minorScale(self::precisionFor($currency));
     }
 
-    public static function formatMajorWithCode(int | float | string $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
+    public static function formatMajorWithCode(int $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
     {
         $currency = self::normalizeCurrency($currency);
 
         return self::decimalFromMajor($amountInMajorUnits, $currency, $precision) . ' ' . mb_strtoupper($currency);
     }
 
-    public static function decimalFromMinor(int | float | string $amountInMinorUnits, ?string $currency = null, ?int $precision = null): string
+    public static function decimalFromMinor(int $amountInMinorUnits, ?string $currency = null, ?int $precision = null): string
     {
         $currency = self::normalizeCurrency($currency);
-        $minor = self::normalizeMinor($amountInMinorUnits);
         $currencyPrecision = self::precisionFor($currency);
         $precision ??= $currencyPrecision;
 
-        return number_format($minor / self::minorScale($currencyPrecision), $precision, '.', ',');
+        return number_format($amountInMinorUnits / self::minorScale($currencyPrecision), $precision, '.', ',');
     }
 
-    public static function decimalFromMajor(int | float | string $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
+    public static function decimalFromMajor(int $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
     {
         $currency = self::normalizeCurrency($currency);
         $precision ??= self::precisionFor($currency);
 
-        return number_format(self::normalizeMajor($amountInMajorUnits), $precision, '.', ',');
+        return number_format($amountInMajorUnits, $precision, '.', ',');
     }
 
     public static function symbol(?string $currency = null): string
@@ -146,37 +159,6 @@ final class MoneyFormatter
         return self::CURRENCY_ALIASES[$normalized] ?? $normalized;
     }
 
-    private static function normalizeMinor(int | float | string $amountInMinorUnits): int
-    {
-        if (is_int($amountInMinorUnits)) {
-            return $amountInMinorUnits;
-        }
-
-        if (is_float($amountInMinorUnits)) {
-            return (int) round($amountInMinorUnits);
-        }
-
-        $normalized = self::normalizeNumericString($amountInMinorUnits);
-
-        return $normalized === '' ? 0 : (int) round((float) $normalized);
-    }
-
-    private static function normalizeMajor(int | float | string $amountInMajorUnits): float
-    {
-        if (is_int($amountInMajorUnits) || is_float($amountInMajorUnits)) {
-            return (float) $amountInMajorUnits;
-        }
-
-        $normalized = self::normalizeNumericString($amountInMajorUnits);
-
-        return $normalized === '' ? 0.0 : (float) $normalized;
-    }
-
-    private static function normalizeNumericString(string $value): string
-    {
-        return str_replace([',', ' '], '', mb_trim($value));
-    }
-
     private static function prefixSymbol(string $symbol, string $decimal): string
     {
         if (str_starts_with($decimal, '-')) {
@@ -184,41 +166,6 @@ final class MoneyFormatter
         }
 
         return $symbol . $decimal;
-    }
-
-    private static function majorToMinorValue(int | float | string $amountInMajorUnits, int $precision): int
-    {
-        if (is_float($amountInMajorUnits)) {
-            if (! is_finite($amountInMajorUnits)) {
-                throw new InvalidArgumentException('Money amount must be finite.');
-            }
-
-            $normalized = sprintf('%.14F', $amountInMajorUnits);
-        } else {
-            $normalized = (string) $amountInMajorUnits;
-        }
-
-        $normalized = self::normalizeNumericString($normalized);
-
-        if ($normalized === '') {
-            return 0;
-        }
-
-        if (preg_match('/^([+-]?)(\d+)(?:\.(\d+))?$/', $normalized, $matches) !== 1) {
-            throw new InvalidArgumentException('Money amount must be a valid decimal number.');
-        }
-
-        $whole = mb_ltrim($matches[2], '0') ?: '0';
-        $fraction = mb_str_pad($matches[3] ?? '', $precision + 1, '0');
-        $minorFraction = $precision > 0 ? mb_substr($fraction, 0, $precision) : '';
-        $minor = ((int) $whole * self::minorScale($precision))
-            + ($minorFraction === '' ? 0 : (int) $minorFraction);
-
-        if (($fraction[$precision] ?? '0') >= '5') {
-            $minor++;
-        }
-
-        return $matches[1] === '-' ? -$minor : $minor;
     }
 
     private static function minorScale(int $precision): int
