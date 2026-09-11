@@ -8,8 +8,11 @@ use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
 use AIArmada\CommerceSupport\Contracts\PublicDnsResolver;
 use AIArmada\CommerceSupport\Http\PinnedHttpClient;
+use AIArmada\CommerceSupport\Support\AuditableModelRegistry;
 use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
+use AIArmada\CommerceSupport\Support\LoggableModelRegistry;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\Payment\ActorPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\GuestPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\PaymentSubjectResolver;
@@ -25,6 +28,8 @@ use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
+use Laravel\Octane\Events\RequestReceived;
+use Laravel\Octane\Events\RequestTerminated;
 use OwenIt\Auditing\AuditingServiceProvider;
 use ReflectionClass;
 use RuntimeException;
@@ -78,8 +83,32 @@ final class SupportServiceProvider extends PackageServiceProvider
         $this->registerTargetingEngine();
         $this->registerPinnedHttpTransport();
         $this->registerLanguageServices();
+        $this->registerOctaneListeners();
         $this->app->singleton(Actions\SeedCurrenciesAction::class);
         $this->app->singleton(Actions\SeedTimezonesAction::class);
+    }
+
+    private function registerOctaneListeners(): void
+    {
+        $flush = static function (): void {
+            OwnerContext::flushState();
+
+            if (app()->bound(AuditableModelRegistry::class)) {
+                app(AuditableModelRegistry::class)->flush();
+            }
+
+            if (app()->bound(LoggableModelRegistry::class)) {
+                app(LoggableModelRegistry::class)->flush();
+            }
+        };
+
+        if (class_exists(RequestReceived::class)) {
+            $this->app['events']->listen(RequestReceived::class, $flush);
+        }
+
+        if (class_exists(RequestTerminated::class)) {
+            $this->app['events']->listen(RequestTerminated::class, $flush);
+        }
     }
 
     private function registerPinnedHttpTransport(): void
