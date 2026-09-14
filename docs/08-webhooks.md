@@ -214,6 +214,7 @@ The base handler is idempotent at two levels:
 - If the current payload has an event type field (`event_type`, `event`, or `type`), a candidate row must carry the **same type value** in at least one of those fields. A row with the same event ID but a different event type (e.g. `payment.completed` vs `payment.refunded`) is **not** considered a duplicate and will be processed independently.
 - If the current payload has **no** event type in any field, only rows that also have no event type are treated as duplicates, preventing accidental suppression when a provider starts adding type fields in a later webhook version.
 - If the payload has **no event ID**, cross-row deduplication is skipped entirely and only row-level idempotency applies.
+- Deduplication is scoped to the owner: a candidate row must carry the **same owner identity** (`__owner_type` / `__owner_id` stamped on the payload by the receiving controller). Two owners' identical provider events are processed independently; deliveries without an owner identity only deduplicate against other ownerless deliveries.
 
 You should still make your own domain writes idempotent inside `processEvent()` (for example, avoid double-marking paid orders):
 

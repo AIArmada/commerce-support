@@ -76,6 +76,13 @@ class Order extends Model
 }
 ```
 
+Credentials and PII (passwords, tokens, secrets, payment data, names,
+emails, phones, addresses, dates of birth — see
+`SensitiveAttributes::list()`) are excluded from audits and redacted from
+audit payloads by default. Likewise, `LogsCommerceActivity` logs the
+fillable list minus those sensitive attributes unless the model defines an
+explicit allowlist via `getLoggableAttributes()`.
+
 ### Custom Audit Events
 
 ```php

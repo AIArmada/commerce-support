@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Models;
 
+use AIArmada\CommerceSupport\Enums\ReportSeverity;
+use AIArmada\CommerceSupport\Enums\ReportStatus;
 use Carbon\CarbonImmutable;
 use Eloquent;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -19,8 +21,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $reporter_type
  * @property string|null $reporter_id
  * @property string $report_type
- * @property string $status
- * @property string $severity
+ * @property ReportStatus $status
+ * @property ReportSeverity $severity
  * @property string|null $title
  * @property string|null $message
  * @property string|null $reviewed_by_type
@@ -44,15 +46,26 @@ class Report extends Model
     use HasFactory;
     use HasUuids;
 
+    /**
+     * Only reporter-supplied content is mass-assignable. Polymorphic
+     * identities (reportable/reporter/reviewed_by), workflow state
+     * (status/severity/resolution/internal_notes) and lifecycle timestamps
+     * must be set server-side via relationships or explicit transitions.
+     *
+     * @var list<string>
+     */
     protected $fillable = [
-        'reportable_type', 'reportable_id',
-        'reporter_type', 'reporter_id',
-        'report_type', 'status', 'severity',
+        'report_type',
         'title', 'message',
-        'reviewed_by_type', 'reviewed_by_id',
-        'reported_at', 'reviewed_at', 'resolved_at', 'rejected_at', 'archived_at',
-        'resolution', 'internal_notes',
         'metadata',
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    protected $attributes = [
+        'status' => 'open',
+        'severity' => 'medium',
     ];
 
     public function getTable(): string
@@ -63,6 +76,8 @@ class Report extends Model
     protected function casts(): array
     {
         return [
+            'status' => ReportStatus::class,
+            'severity' => ReportSeverity::class,
             'reported_at' => 'immutable_datetime',
             'reviewed_at' => 'immutable_datetime',
             'resolved_at' => 'immutable_datetime',
@@ -85,5 +100,57 @@ class Report extends Model
     public function reviewedBy(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Report $report): void {
+            $report->reported_at ??= CarbonImmutable::now();
+        });
+    }
+
+    public function startReview(Model $reviewer): bool
+    {
+        $this->reviewedBy()->associate($reviewer);
+        $this->status = ReportStatus::UnderReview;
+        $this->reviewed_at = CarbonImmutable::now();
+
+        return $this->save();
+    }
+
+    public function resolve(Model $reviewer, ?string $resolution = null): bool
+    {
+        $this->reviewedBy()->associate($reviewer);
+        $this->status = ReportStatus::Resolved;
+        $this->reviewed_at ??= CarbonImmutable::now();
+        $this->resolved_at = CarbonImmutable::now();
+
+        if ($resolution !== null) {
+            $this->resolution = $resolution;
+        }
+
+        return $this->save();
+    }
+
+    public function reject(Model $reviewer, ?string $resolution = null): bool
+    {
+        $this->reviewedBy()->associate($reviewer);
+        $this->status = ReportStatus::Rejected;
+        $this->reviewed_at ??= CarbonImmutable::now();
+        $this->rejected_at = CarbonImmutable::now();
+
+        if ($resolution !== null) {
+            $this->resolution = $resolution;
+        }
+
+        return $this->save();
+    }
+
+    public function archive(): bool
+    {
+        $this->status = ReportStatus::Archived;
+        $this->archived_at = CarbonImmutable::now();
+
+        return $this->save();
     }
 }

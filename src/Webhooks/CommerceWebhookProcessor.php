@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Webhooks;
 
 use AIArmada\CommerceSupport\Actions\ProcessWebhookCallAction;
-use Illuminate\Database\Eloquent\Builder;
 use Spatie\WebhookClient\Jobs\ProcessWebhookJob;
 use Spatie\WebhookClient\Models\WebhookCall;
 
@@ -47,10 +46,12 @@ abstract class CommerceWebhookProcessor extends ProcessWebhookJob
         ProcessWebhookCallAction::run(
             webhookCall: $this->webhookCall,
             extractEventType: fn (array $payload): string => $this->extractEventType($payload),
+            extractEventId: fn (array $payload): ?string => $this->extractEventId($payload),
             isDuplicateProcessedEvent: fn (WebhookCall $current, array $payload, string $eventType): bool => $this->isDuplicateProcessedEvent($current, $payload, $eventType),
             processEvent: function (string $eventType, array $payload): void {
                 $this->processEvent($eventType, $payload);
             },
+            extractOwner: fn (array $payload): array => $this->extractOwner($payload),
         );
     }
 
@@ -90,9 +91,32 @@ abstract class CommerceWebhookProcessor extends ProcessWebhookJob
     }
 
     /**
+     * Extract the owner identity carried by the delivery, if any.
+     *
+     * Controllers that resolve an owner before storing the delivery stamp
+     * `__owner_type` / `__owner_id` on the payload; the claim persists that
+     * identity so deduplication stays scoped to the owning tenant.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{0: string|null, 1: string|null}
+     */
+    protected function extractOwner(array $payload): array
+    {
+        $type = $payload['__owner_type'] ?? null;
+        $id = $payload['__owner_id'] ?? null;
+
+        return [
+            is_string($type) && $type !== '' ? $type : null,
+            is_scalar($id) && (string) $id !== '' ? (string) $id : null,
+        ];
+    }
+
+    /**
      * Determine if this webhook event was already processed in a different webhook row.
      *
-     * Deduplication requires both the canonical provider id and event type to match.
+     * Deduplication requires the canonical provider id, the event type, and
+     * the owner identity to match, so two owners' identical provider events
+     * never collapse into one delivery.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -104,16 +128,24 @@ abstract class CommerceWebhookProcessor extends ProcessWebhookJob
             return false;
         }
 
-        return WebhookCall::query()
+        $query = WebhookCall::query()
             ->where('name', $current->name)
             ->whereKeyNot($current->getKey())
             ->whereNotNull('processed_at')
-            ->where(function (Builder $builder) use ($eventId): void {
-                $builder->where('payload->event_id', $eventId)
-                    ->orWhere('payload->id', $eventId);
-            })
-            ->where('payload->event_type', $eventType)
-            ->exists();
+            ->where('event_id', $eventId)
+            ->where('event_type', $eventType);
+
+        if (ProcessWebhookCallAction::supportsOwnerDedup()) {
+            $ownerHash = $current->getAttribute('owner_hash');
+
+            if (is_string($ownerHash) && $ownerHash !== '') {
+                $query->where('owner_hash', $ownerHash);
+            } else {
+                $query->whereNull('owner_hash');
+            }
+        }
+
+        return $query->exists();
     }
 
     /**

@@ -57,7 +57,7 @@ final class MoneyFormatter
     ): string {
         $currency = self::normalizeCurrency($currency);
         $precision ??= $minorUnitPrecision;
-        $decimal = number_format($amountInMinorUnits / self::minorScale($minorUnitPrecision), $precision, '.', ',');
+        $decimal = self::decimalString($amountInMinorUnits, $minorUnitPrecision, $precision);
 
         return self::prefixSymbol(self::symbol($currency), $decimal);
     }
@@ -101,7 +101,7 @@ final class MoneyFormatter
         $currencyPrecision = self::precisionFor($currency);
         $precision ??= $currencyPrecision;
 
-        return number_format($amountInMinorUnits / self::minorScale($currencyPrecision), $precision, '.', ',');
+        return self::decimalString($amountInMinorUnits, $currencyPrecision, $precision);
     }
 
     public static function decimalFromMajor(int $amountInMajorUnits, ?string $currency = null, ?int $precision = null): string
@@ -171,5 +171,35 @@ final class MoneyFormatter
     private static function minorScale(int $precision): int
     {
         return (int) (10 ** $precision);
+    }
+
+    /**
+     * Build a grouped decimal string with exact integer math (no float
+     * division), rounding half away from zero when the display precision is
+     * lower than the minor-unit precision — matching number_format().
+     */
+    private static function decimalString(int $minor, int $fromPrecision, int $displayPrecision): string
+    {
+        $negative = $minor < 0;
+        $abs = abs($minor);
+
+        if ($displayPrecision >= $fromPrecision) {
+            $scaled = $abs * (10 ** ($displayPrecision - $fromPrecision));
+        } else {
+            $divisor = 10 ** ($fromPrecision - $displayPrecision);
+            $scaled = intdiv($abs + intdiv($divisor, 2), $divisor);
+        }
+
+        $displayScale = 10 ** $displayPrecision;
+        $whole = intdiv($scaled, $displayScale);
+        $grouped = number_format($whole, 0, '.', ',');
+
+        if ($displayPrecision === 0) {
+            return $negative ? '-' . $grouped : $grouped;
+        }
+
+        $fraction = mb_str_pad((string) ($scaled % $displayScale), $displayPrecision, '0', STR_PAD_LEFT);
+
+        return ($negative ? '-' : '') . $grouped . '.' . $fraction;
     }
 }

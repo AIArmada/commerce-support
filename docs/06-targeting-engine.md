@@ -157,6 +157,32 @@ $context = new TargetingContext(
 | `metadata` | `array` | Custom key-values |
 | `currentTime` | `Carbon` | Evaluation timestamp |
 
+### Trusted Input Sources
+
+Channel, country, region, city, and timezone resolve in this order: explicit
+`metadata` first, then (for country) the user model, then proxy/CDN headers,
+then built-in defaults. Header values (`X-Channel`, `X-Sales-Channel`,
+`CF-IPCountry`, `X-Country`, `X-Geo-Country`, `X-Region`, `X-City`,
+`X-Timezone`) are client-spoofable, so they are **ignored by default**.
+Discount-gating rules should pass server-resolved values via `metadata`
+(storefront session, verified geo-IP) instead of relying on headers.
+
+Enable header trust only when the deployment guarantees the headers are set
+by trusted infrastructure (CDN, edge proxy, storefront backend):
+
+```php
+'targeting' => [
+    'trust_proxy_headers' => true,
+],
+```
+
+`Referer` and UTM values have no server-side equivalent and are always
+treated as untrusted hints; avoid them in discount-gating rules.
+
+Custom `and`/`or`/`not` expressions are capped at a nesting depth of 10 and
+200 total nodes; deeper or larger expressions fail validation and evaluate
+to `false`.
+
 ## Built-in Rule Types
 
 ### Cart Rules

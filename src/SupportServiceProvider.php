@@ -13,6 +13,7 @@ use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
 use AIArmada\CommerceSupport\Support\LoggableModelRegistry;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\CommerceSupport\Support\OwnerScopeOverride;
 use AIArmada\CommerceSupport\Support\Payment\ActorPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\GuestPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\PaymentSubjectResolver;
@@ -92,6 +93,7 @@ final class SupportServiceProvider extends PackageServiceProvider
     {
         $flush = static function (): void {
             OwnerContext::flushState();
+            OwnerScopeOverride::flushState();
 
             if (app()->bound(AuditableModelRegistry::class)) {
                 app(AuditableModelRegistry::class)->flush();
@@ -161,6 +163,10 @@ final class SupportServiceProvider extends PackageServiceProvider
     private function registerTagModel(): void
     {
         config(['tags.tag_model' => Models\Tag::class]);
+        config(['tags.taggable.table_name' => config(
+            'commerce-support.database.tables.taggables',
+            'taggables',
+        )]);
     }
 
     private function loadDependencyMigrations(): void
@@ -257,6 +263,16 @@ final class SupportServiceProvider extends PackageServiceProvider
                     'add_webhook_lifecycle_columns'
                 );
             }
+
+            $webhookOwnerDedupMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000006_add_owner_dedup_to_webhook_calls_table.php.stub';
+
+            if (is_file($webhookOwnerDedupMigrationPath)) {
+                ConditionalMigrationLoader::loadFileIfMissing(
+                    $this,
+                    $webhookOwnerDedupMigrationPath,
+                    'add_owner_dedup_to_webhook_calls_table'
+                );
+            }
         }
     }
 
@@ -339,7 +355,10 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     private function tagTablesExist(): bool
     {
-        return $this->tableExists('tags') && $this->tableExists('taggables');
+        $tags = (string) config('commerce-support.database.tables.tags', 'tags');
+        $taggables = (string) config('commerce-support.database.tables.taggables', 'taggables');
+
+        return $this->tableExists($tags) && $this->tableExists($taggables);
     }
 
     private function tableExists(string $table, ?string $connection = null): bool

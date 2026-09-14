@@ -108,6 +108,43 @@ Optional morph type used by team-aware integrations when the owner is represente
 
 **Default:** `null`
 
+### Targeting Settings
+
+#### `trust_proxy_headers`
+
+Whether proxy/CDN-style request headers (`X-Channel`, `CF-IPCountry`,
+`X-Region`, `X-City`, `X-Timezone`, ...) may steer targeting channel, geo,
+and timezone resolution.
+
+**Default:** `false`
+
+Keep this disabled unless the deployment guarantees these headers originate
+from trusted infrastructure. Shoppers can otherwise set them directly and
+steer discount-gating rules. Prefer passing server-resolved values through
+targeting `metadata`. See [Targeting Engine](./06-targeting-engine.md).
+
+```php
+'targeting' => [
+    'trust_proxy_headers' => false,
+],
+```
+
+### Filesystem Settings
+
+#### `disk`
+
+Optional disk name used by `OwnerFilesystem` for all owner-scoped file
+operations. Set it to a private disk to guarantee tenant files never land
+on a public default disk.
+
+**Default:** `null` (uses the application default disk)
+
+```php
+'filesystem' => [
+    'disk' => 'local',
+],
+```
+
 #### `resolver`
 
 The class responsible for resolving the current tenant/owner context.

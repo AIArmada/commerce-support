@@ -7,6 +7,7 @@ namespace AIArmada\CommerceSupport\Support;
 use AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable;
 use DateInterval;
 use DateTimeInterface;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
@@ -52,18 +53,9 @@ final class OwnerFilesystem
      */
     public static function path(Model | OwnerScopeIdentifiable | null $owner, string $relativePath): string
     {
-        if ($relativePath === '') {
-            throw new InvalidArgumentException('Relative path cannot be empty.');
-        }
-
-        // Prevent directory traversal attacks
-        if (str_contains($relativePath, '..') || str_starts_with($relativePath, '/')) {
-            throw new InvalidArgumentException('Relative path contains invalid traversal characters.');
-        }
-
         $ownerKey = OwnerScopeKey::forOwner($owner);
 
-        return "owners/{$ownerKey}/{$relativePath}";
+        return 'owners/' . $ownerKey . '/' . self::normalizeRelativePath($relativePath);
     }
 
     /**
@@ -75,7 +67,7 @@ final class OwnerFilesystem
      */
     public static function put(Model | OwnerScopeIdentifiable | null $owner, string $relativePath, $contents, array $options = []): bool
     {
-        return Storage::disk()->put(
+        return self::disk()->put(
             self::path($owner, $relativePath),
             $contents,
             $options
@@ -91,11 +83,11 @@ final class OwnerFilesystem
     {
         $fullPath = self::path($owner, $relativePath);
 
-        if (! Storage::disk()->exists($fullPath)) {
+        if (! self::disk()->exists($fullPath)) {
             return $default;
         }
 
-        return Storage::disk()->get($fullPath);
+        return self::disk()->get($fullPath);
     }
 
     /**
@@ -103,7 +95,7 @@ final class OwnerFilesystem
      */
     public static function exists(Model | OwnerScopeIdentifiable | null $owner, string $relativePath): bool
     {
-        return Storage::disk()->exists(self::path($owner, $relativePath));
+        return self::disk()->exists(self::path($owner, $relativePath));
     }
 
     /**
@@ -111,7 +103,7 @@ final class OwnerFilesystem
      */
     public static function delete(Model | OwnerScopeIdentifiable | null $owner, string $relativePath): bool
     {
-        return Storage::disk()->delete(self::path($owner, $relativePath));
+        return self::disk()->delete(self::path($owner, $relativePath));
     }
 
     /**
@@ -123,11 +115,11 @@ final class OwnerFilesystem
     {
         $fullPath = self::path($owner, $relativePath);
 
-        if (! Storage::disk()->exists($fullPath)) {
+        if (! self::disk()->exists($fullPath)) {
             return null;
         }
 
-        return Storage::disk()->url($fullPath);
+        return self::disk()->url($fullPath);
     }
 
     /**
@@ -139,12 +131,12 @@ final class OwnerFilesystem
     {
         $fullPath = self::path($owner, $relativePath);
 
-        if (! Storage::disk()->exists($fullPath)) {
+        if (! self::disk()->exists($fullPath)) {
             return null;
         }
 
         try {
-            return Storage::disk()->temporaryUrl($fullPath, $expiration);
+            return self::disk()->temporaryUrl($fullPath, $expiration);
         } catch (Throwable) {
             return null;
         }
@@ -158,7 +150,7 @@ final class OwnerFilesystem
      */
     public static function copy(Model | OwnerScopeIdentifiable | null $owner, string $from, string $to): bool
     {
-        return Storage::disk()->copy(
+        return self::disk()->copy(
             self::path($owner, $from),
             self::path($owner, $to)
         );
@@ -169,9 +161,62 @@ final class OwnerFilesystem
      */
     public static function move(Model | OwnerScopeIdentifiable | null $owner, string $from, string $to): bool
     {
-        return Storage::disk()->move(
+        return self::disk()->move(
             self::path($owner, $from),
             self::path($owner, $to)
         );
+    }
+
+    /**
+     * Normalize and validate an owner-relative path, defeating traversal,
+     * encoding, separator, and absolute-path evasions.
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function normalizeRelativePath(string $relativePath): string
+    {
+        if ($relativePath === '') {
+            throw new InvalidArgumentException('Relative path cannot be empty.');
+        }
+
+        if (str_contains($relativePath, "\0") || preg_match('/[\x00-\x1F\x7F]/', $relativePath) === 1) {
+            throw new InvalidArgumentException('Relative path contains invalid control characters.');
+        }
+
+        $decoded = $relativePath;
+
+        for ($i = 0; $i < 3; $i++) {
+            $next = rawurldecode($decoded);
+
+            if ($next === $decoded) {
+                break;
+            }
+
+            $decoded = $next;
+        }
+
+        $unified = str_replace('\\', '/', $decoded);
+
+        if (str_starts_with($unified, '/') || preg_match('#^[a-zA-Z]:#', $unified) === 1) {
+            throw new InvalidArgumentException('Relative path contains invalid traversal characters.');
+        }
+
+        $segments = explode('/', $unified);
+
+        foreach ($segments as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new InvalidArgumentException('Relative path contains invalid traversal characters.');
+            }
+        }
+
+        return implode('/', $segments);
+    }
+
+    /**
+     * @return Filesystem
+     */
+    private static function disk()
+    {
+        return Storage::disk(config('commerce-support.filesystem.disk'));
     }
 }

@@ -45,7 +45,7 @@ trait OwnerContextJob
             return;
         }
 
-        $owner = $ownerContext->toOwnerModel();
+        $owner = $ownerContext->toOwnerModelOrFail();
 
         if (config('commerce-support.owner.enabled', false) && $owner === null) {
             throw new RuntimeException(

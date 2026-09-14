@@ -47,12 +47,14 @@ readonly class UserContext
             );
         }
 
+        $orderCount = self::extractOrderCount($user);
+
         return new self(
             user: $user,
             segments: self::extractSegments($user),
-            isFirstPurchase: self::extractIsFirstPurchase($user, $metadata),
+            isFirstPurchase: self::extractIsFirstPurchase($user, $metadata, $orderCount),
             lifetimeValue: self::extractLifetimeValue($user, $metadata),
-            orderCount: self::extractOrderCount($user),
+            orderCount: $orderCount,
             attributes: self::extractAttributes($user),
         );
     }
@@ -109,7 +111,7 @@ readonly class UserContext
         return [];
     }
 
-    private static function extractIsFirstPurchase(Model $user, array $metadata): bool
+    private static function extractIsFirstPurchase(Model $user, array $metadata, int $orderCount): bool
     {
         if (isset($metadata['is_first_purchase'])) {
             return (bool) $metadata['is_first_purchase'];
@@ -121,7 +123,7 @@ readonly class UserContext
         }
 
         if (method_exists($user, 'orders')) {
-            return $user->orders()->count() === 0;
+            return $orderCount === 0;
         }
 
         $totalOrders = $user->getAttribute('total_orders');

@@ -28,6 +28,14 @@ class CommerceHealthWidget extends Widget
 
     protected int | string | array $columnSpan = 'full';
 
+    /**
+     * Per-instance memo of health results so one render pays for a single
+     * result-store read no matter how many getters the view calls.
+     *
+     * @var array<int, array{name: string, status: string, message: string, meta: array<string, mixed>}>|null
+     */
+    private ?array $healthResults = null;
+
     public static function canView(): bool
     {
         if (! class_exists(Health::class) || ! app()->bound('health')) {
@@ -56,32 +64,33 @@ class CommerceHealthWidget extends Widget
      */
     public function getHealthResults(): array
     {
+        if ($this->healthResults !== null) {
+            return $this->healthResults;
+        }
+
         if (! self::canView()) {
-            return [];
+            return $this->healthResults = [];
         }
 
         try {
-            $resultStore = app(ResultStore::class);
-            $storedResults = $resultStore->latestResults();
+            $stored = app(ResultStore::class)->latestResults();
         } catch (Throwable) {
-            // Run checks directly if no stored results
-            $storedResults = collect();
+            $stored = null;
         }
 
         $results = [];
 
-        foreach ($storedResults as $checkResult) {
+        foreach ($stored?->storedCheckResults ?? [] as $checkResult) {
             $results[] = [
-                'name' => $checkResult->check,
-                'label' => $this->formatCheckName($checkResult->check),
+                'name' => $checkResult->name,
+                'label' => $checkResult->label !== '' ? $checkResult->label : $this->formatCheckName($checkResult->name),
                 'status' => $this->mapStatus($checkResult->status),
                 'message' => $checkResult->shortSummary,
                 'meta' => $checkResult->meta,
-                'ended_at' => $checkResult->ended_at,
             ];
         }
 
-        return $results;
+        return $this->healthResults = $results;
     }
 
     /**
@@ -179,10 +188,12 @@ class CommerceHealthWidget extends Widget
     {
         // Remove namespace and "Check" suffix
         $name = class_basename($checkName);
-        $name = preg_replace('/Check$/', '', $name);
+        $name = preg_replace('/Check$/', '', $name) ?? $name;
 
         // Split camelCase
-        return implode(' ', preg_split('/(?=[A-Z])/', $name, -1, PREG_SPLIT_NO_EMPTY));
+        $parts = preg_split('/(?=[A-Z])/', $name, -1, PREG_SPLIT_NO_EMPTY);
+
+        return implode(' ', $parts === false ? [$name] : $parts);
     }
 
     /**

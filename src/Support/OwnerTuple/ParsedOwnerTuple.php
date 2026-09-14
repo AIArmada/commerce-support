@@ -64,4 +64,17 @@ final readonly class ParsedOwnerTuple
 
         return OwnerContext::fromTypeAndId($this->owner_type, $this->owner_id);
     }
+
+    public function toOwnerModelOrFail(): ?Model
+    {
+        if ($this->isExplicitGlobal()) {
+            return null;
+        }
+
+        if (! $this->isOwner()) {
+            throw new RuntimeException('Owner tuple is unresolved and cannot be converted to an owner model.');
+        }
+
+        return OwnerContext::fromTypeAndIdOrFail($this->owner_type, $this->owner_id);
+    }
 }

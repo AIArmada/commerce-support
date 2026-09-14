@@ -44,54 +44,72 @@ final class SetupCommand extends Command
 
         // CHIP Payment Gateway
         if (confirm('Configure CHIP payment gateway?', default: false)) {
-            $brandId = text(
-                label: 'CHIP Brand ID',
+            if (confirm('Set CHIP environment?', default: false)) {
+                $updates['CHIP_ENVIRONMENT'] = confirm('Use production mode?', default: false) ? 'production' : 'sandbox';
+            }
+
+            $collectApiKey = password(
+                label: 'CHIP Collect API Key',
+                required: false
+            );
+            if ($collectApiKey) {
+                $updates['CHIP_COLLECT_API_KEY'] = $collectApiKey;
+            }
+
+            $collectBrandId = text(
+                label: 'CHIP Collect Brand ID',
                 placeholder: 'your-brand-id',
                 required: false
             );
-            if ($brandId) {
-                $updates['CHIP_BRAND_ID'] = $brandId;
+            if ($collectBrandId) {
+                $updates['CHIP_COLLECT_BRAND_ID'] = $collectBrandId;
             }
 
-            $secretKey = password(
-                label: 'CHIP Secret Key',
+            $collectPublicKey = text(
+                label: 'CHIP Collect Public Key',
                 required: false
             );
-            if ($secretKey) {
-                $updates['CHIP_SECRET_KEY'] = $secretKey;
+            if ($collectPublicKey) {
+                $updates['CHIP_COLLECT_PUBLIC_KEY'] = $collectPublicKey;
             }
 
-            $webhookUrl = text(
-                label: 'CHIP Webhook URL',
-                placeholder: 'https://your-domain.com/webhooks/chip',
+            $sendApiKey = password(
+                label: 'CHIP Send API Key',
                 required: false
             );
-            if ($webhookUrl) {
-                $updates['CHIP_WEBHOOK_URL'] = $webhookUrl;
+            if ($sendApiKey) {
+                $updates['CHIP_SEND_API_KEY'] = $sendApiKey;
             }
 
-            if (confirm('Set CHIP mode?', default: false)) {
-                $updates['CHIP_MODE'] = confirm('Use production mode?', default: false) ? 'production' : 'sandbox';
+            $sendApiSecret = password(
+                label: 'CHIP Send API Secret',
+                required: false
+            );
+            if ($sendApiSecret) {
+                $updates['CHIP_SEND_API_SECRET'] = $sendApiSecret;
             }
         }
 
         // J&T Express
         if (confirm('Configure J&T Express shipping?', default: false)) {
-            $apiKey = password(
-                label: 'J&T Express API Key',
-                required: false
-            );
-            if ($apiKey) {
-                $updates['JNT_API_KEY'] = $apiKey;
+            if (confirm('Set J&T environment?', default: false)) {
+                $updates['JNT_ENVIRONMENT'] = confirm('Use production mode?', default: false) ? 'production' : 'testing';
             }
 
-            $apiUrl = text(
-                label: 'J&T Express API URL',
-                default: 'https://api.jtexpress.com.my',
+            $apiAccount = text(
+                label: 'J&T Express API Account',
                 required: false
             );
-            if ($apiUrl && $apiUrl !== 'https://api.jtexpress.com.my') {
-                $updates['JNT_API_URL'] = $apiUrl;
+            if ($apiAccount) {
+                $updates['JNT_API_ACCOUNT'] = $apiAccount;
+            }
+
+            $privateKey = password(
+                label: 'J&T Express Private Key',
+                required: false
+            );
+            if ($privateKey) {
+                $updates['JNT_PRIVATE_KEY'] = $privateKey;
             }
 
             $customerCode = text(
@@ -100,6 +118,14 @@ final class SetupCommand extends Command
             );
             if ($customerCode) {
                 $updates['JNT_CUSTOMER_CODE'] = $customerCode;
+            }
+
+            $jntPassword = password(
+                label: 'J&T Express Password',
+                required: false
+            );
+            if ($jntPassword) {
+                $updates['JNT_PASSWORD'] = $jntPassword;
             }
         }
 

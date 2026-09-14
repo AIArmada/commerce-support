@@ -58,4 +58,13 @@ final readonly class OwnerJobContext
 
         return OwnerContext::fromTypeAndId($this->ownerType, $this->ownerId);
     }
+
+    public function toOwnerModelOrFail(): ?Model
+    {
+        if ($this->ownerType === null || $this->ownerId === null) {
+            return null;
+        }
+
+        return OwnerContext::fromTypeAndIdOrFail($this->ownerType, $this->ownerId);
+    }
 }

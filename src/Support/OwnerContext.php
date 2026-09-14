@@ -11,6 +11,7 @@ use AIArmada\CommerceSupport\Events\MadeOwnerCurrentEvent;
 use AIArmada\CommerceSupport\Events\MakingOwnerCurrentEvent;
 use AIArmada\CommerceSupport\Exceptions\NoCurrentOwnerException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -182,6 +183,38 @@ final class OwnerContext
         $owner->setAttribute($owner->getKeyName(), $ownerId);
 
         return $owner;
+    }
+
+    /**
+     * Resolve an owner tuple to a persisted model, failing on orphaned tuples.
+     *
+     * Unlike fromTypeAndId() — which instantiates without querying — this
+     * verifies the owner row exists and returns the fresh model. Use it on
+     * trust boundaries (queued jobs, batch runners, inbound payloads) where
+     * an orphaned or forged tuple must never yield a working owner scope.
+     *
+     * @throws InvalidArgumentException When the tuple is malformed or unresolvable.
+     * @throws ModelNotFoundException When the owner row does not exist.
+     */
+    public static function fromTypeAndIdOrFail(?string $ownerType, string | int | null $ownerId): ?Model
+    {
+        if (($ownerType === null) !== ($ownerId === null)) {
+            throw new InvalidArgumentException('Owner type and owner id must both be present or both be null.');
+        }
+
+        $owner = self::fromTypeAndId($ownerType, $ownerId);
+
+        if ($owner === null) {
+            return null;
+        }
+
+        $fresh = $owner->newQuery()->whereKey($owner->getKey())->first();
+
+        if (! $fresh instanceof Model) {
+            throw (new ModelNotFoundException)->setModel($owner::class, $owner->getKey());
+        }
+
+        return $fresh;
     }
 
     /**

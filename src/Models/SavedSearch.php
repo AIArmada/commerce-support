@@ -31,9 +31,13 @@ class SavedSearch extends Model
     use HasFactory;
     use HasUuids;
 
+    /**
+     * Polymorphic identities (user/searchable) are set server-side via the
+     * owning relationship; only search content is mass-assignable.
+     *
+     * @var list<string>
+     */
     protected $fillable = [
-        'user_type', 'user_id',
-        'searchable_type', 'searchable_id',
         'name',
         'query', 'filters',
         'meta',

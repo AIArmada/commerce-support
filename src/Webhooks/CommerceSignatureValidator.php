@@ -54,6 +54,10 @@ abstract class CommerceSignatureValidator implements SignatureValidator
             return false;
         }
 
+        if (! $this->isTimestampFresh($request)) {
+            return false;
+        }
+
         return $this->validateSignature($request, $signature, $secret);
     }
 
@@ -73,7 +77,65 @@ abstract class CommerceSignatureValidator implements SignatureValidator
         $payload = $this->getPayloadForSigning($request);
         $expectedSignature = $this->computeSignature($payload, $secret);
 
-        return hash_equals($expectedSignature, $signature);
+        return hash_equals($expectedSignature, $this->stripSchemePrefix($signature));
+    }
+
+    /**
+     * Strip a `{algo}=` scheme prefix (e.g. `sha256=`) that providers such
+     * as GitHub prepend to hex digests.
+     */
+    protected function stripSchemePrefix(string $signature): string
+    {
+        $prefix = mb_strtolower($this->getHashAlgorithm()) . '=';
+
+        if (str_starts_with(mb_strtolower($signature), $prefix)) {
+            $stripped = mb_substr($signature, mb_strlen($prefix));
+
+            if ($stripped !== '') {
+                return $stripped;
+            }
+        }
+
+        return $signature;
+    }
+
+    /**
+     * Header carrying the provider's Unix signing timestamp, or null to
+     * skip freshness checks. Override to opt into replay-window enforcement.
+     */
+    protected function getTimestampHeader(): ?string
+    {
+        return null;
+    }
+
+    /**
+     * Maximum age (and future clock-skew leeway), in seconds, for the
+     * provider signing timestamp.
+     */
+    protected function getTimestampToleranceSeconds(): int
+    {
+        return 300;
+    }
+
+    private function isTimestampFresh(Request $request): bool
+    {
+        $header = $this->getTimestampHeader();
+
+        if ($header === null) {
+            return true;
+        }
+
+        $value = $request->header($header);
+
+        if ($value === null || ! is_numeric($value)) {
+            return false;
+        }
+
+        $timestamp = (int) $value;
+        $now = time();
+        $tolerance = $this->getTimestampToleranceSeconds();
+
+        return $timestamp >= $now - $tolerance && $timestamp <= $now + $tolerance;
     }
 
     /**

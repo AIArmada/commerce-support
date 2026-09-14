@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Concerns;
 
+use AIArmada\CommerceSupport\Support\SensitiveAttributes;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Models\Audit;
 
@@ -168,24 +169,14 @@ trait HasCommerceAudit // @phpstan-ignore trait.unused
     /**
      * Get fields that should be redacted in audits.
      *
-     * Override this to specify PII or sensitive data fields.
+     * Override this to extend or replace the shared sensitive-attribute
+     * list (credentials and PII) for the model.
      *
      * @return array<int, string>
      */
     protected function getSensitiveFields(): array
     {
-        return [
-            'password',
-            'password_hash',
-            'remember_token',
-            'api_key',
-            'secret',
-            'credit_card',
-            'card_number',
-            'cvv',
-            'ssn',
-            'tax_id',
-        ];
+        return SensitiveAttributes::list();
     }
 
     /**

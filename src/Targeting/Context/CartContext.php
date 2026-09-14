@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Targeting\Context;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use ReflectionMethod;
 
@@ -177,6 +178,8 @@ readonly class CartContext
             return [];
         }
 
+        self::preloadAssociatedCategories($items);
+
         return $items
             ->flatMap(function ($item): array {
                 $category = $item->getAttribute('category') ?? null;
@@ -193,8 +196,20 @@ readonly class CartContext
                     return $model->getCategories();
                 }
 
+                if ($model instanceof Model && method_exists($model, 'categories') && $model->relationLoaded('categories')) {
+                    $categories = $model->getRelationValue('categories');
+
+                    if ($categories instanceof Collection) {
+                        return $categories->pluck('slug')->all();
+                    }
+                }
+
                 if (is_object($model) && property_exists($model, 'category')) {
                     return [$model->category];
+                }
+
+                if (is_object($model) && property_exists($model, 'category_id')) {
+                    return [(string) $model->category_id];
                 }
 
                 return [];
@@ -203,6 +218,49 @@ readonly class CartContext
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * Eager-load the `categories` relation for associated cart models with one
+     * query per model class, so category extraction never lazy-loads per line.
+     *
+     * @param  Collection<int, mixed>  $items
+     */
+    private static function preloadAssociatedCategories(Collection $items): void
+    {
+        /** @var Collection<int, Model> $models */
+        $models = $items
+            ->filter(fn ($item) => ($item->getAttribute('category') ?? null) === null)
+            ->map(fn ($item) => $item->associatedModel ?? null)
+            ->filter(fn ($model) => $model instanceof Model
+                && ! method_exists($model, 'getCategories')
+                && method_exists($model, 'categories')
+                && ! $model->relationLoaded('categories'));
+
+        foreach ($models->groupBy(fn (Model $model): string => $model::class) as $group) {
+            $keys = $group->map(fn (Model $model) => $model->getKey())
+                ->filter(fn ($key) => $key !== null)
+                ->unique()
+                ->values();
+
+            if ($keys->isEmpty()) {
+                continue;
+            }
+
+            /** @var class-string<Model> $class */
+            $class = $group->first()::class;
+
+            $loaded = $class::query()->whereKey($keys->all())->with('categories')->get()
+                ->keyBy(fn (Model $model): int | string => $model->getKey());
+
+            foreach ($group as $model) {
+                $match = $loaded->get($model->getKey());
+
+                if ($match instanceof Model && $match->relationLoaded('categories')) {
+                    $model->setRelation('categories', $match->getRelation('categories'));
+                }
+            }
+        }
     }
 
     /**

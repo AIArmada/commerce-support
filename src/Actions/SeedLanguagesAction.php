@@ -20,47 +20,73 @@ class SeedLanguagesAction
 
         $table = config('commerce-support.database.tables.languages', 'languages');
         $now = CarbonImmutable::now()->toIso8601ZuluString();
-        $created = 0;
-        $updated = 0;
-        $skipped = 0;
+        $result = ['created' => 0, 'updated' => 0, 'skipped' => 0];
+
+        /** @var array<string, array<string, mixed>> $valid */
+        $valid = [];
 
         foreach ($languages as $row) {
             if (! isset($row['code'], $row['name'])) {
-                $skipped++;
+                $result['skipped']++;
 
                 continue;
             }
 
-            $existing = DB::table($table)->where('code', $row['code'])->first();
-
-            if ($existing === null) {
-                DB::table($table)->insert([
-                    'id' => (string) str()->uuid(),
-                    'code' => $row['code'],
-                    'name' => $row['name'],
-                    'native' => $row['native'] ?? null,
-                    'dir' => $row['dir'] ?? 'ltr',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-                $created++;
-            } elseif (
-                $existing->name !== $row['name']
-                || $existing->native !== ($row['native'] ?? null)
-                || $existing->dir !== ($row['dir'] ?? 'ltr')
-            ) {
-                DB::table($table)->where('code', $row['code'])->update([
-                    'name' => $row['name'],
-                    'native' => $row['native'] ?? null,
-                    'dir' => $row['dir'] ?? 'ltr',
-                    'updated_at' => $now,
-                ]);
-                $updated++;
-            } else {
-                $skipped++;
-            }
+            $valid[(string) $row['code']] = [
+                'code' => $row['code'],
+                'name' => $row['name'],
+                'native' => $row['native'] ?? null,
+                'dir' => $row['dir'] ?? 'ltr',
+            ];
         }
 
-        return compact('created', 'updated', 'skipped');
+        if ($valid === []) {
+            return $result;
+        }
+
+        return DB::transaction(function () use ($table, $now, $valid, $result): array {
+            $existing = DB::table($table)->whereIn('code', array_keys($valid))->get()->keyBy('code');
+
+            $inserts = [];
+            $updates = [];
+
+            foreach ($valid as $code => $row) {
+                $current = $existing->get($code);
+
+                if ($current === null) {
+                    $inserts[] = array_merge($row, [
+                        'id' => (string) str()->uuid(),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+
+                    continue;
+                }
+
+                if (
+                    ($current->name ?? null) !== $row['name']
+                    || ($current->native ?? null) !== $row['native']
+                    || ($current->dir ?? null) !== $row['dir']
+                ) {
+                    // id is required: NOT NULL is checked before ON CONFLICT resolution.
+                    $updates[] = array_merge(['id' => $current->id], $row, ['updated_at' => $now]);
+                } else {
+                    $result['skipped']++;
+                }
+            }
+
+            foreach (array_chunk($inserts, 500) as $chunk) {
+                DB::table($table)->insert($chunk);
+            }
+
+            if ($updates !== []) {
+                DB::table($table)->upsert($updates, ['code'], ['name', 'native', 'dir', 'updated_at']);
+            }
+
+            $result['created'] = count($inserts);
+            $result['updated'] = count($updates);
+
+            return $result;
+        });
     }
 }

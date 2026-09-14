@@ -22,7 +22,6 @@ return new class extends Migration
         commerce_schema_create_if_missing('webhook_calls', function (Blueprint $table) use ($jsonType): void {
             $table->bigIncrements('id');
 
-
             $table->string('name');
             $table->string('url', 512);
             $table->{$jsonType}('headers')->nullable();
@@ -35,7 +34,18 @@ return new class extends Migration
             $table->integer('retry_count')->default(0);
             $table->timestampTz('last_retry_at')->nullable();
 
+            $table->string('event_id', 191)->nullable();
+            $table->string('event_type', 191)->nullable();
+
+            $table->string('owner_type', 191)->nullable();
+            $table->string('owner_id', 191)->nullable();
+            $table->char('owner_hash', 64)->nullable();
+
             $table->timestampsTz();
+
+            $table->index(['name', 'status']);
+            $table->index('processed_at');
+            $table->unique(['name', 'event_id', 'event_type', 'owner_hash'], 'webhook_calls_owner_dedup_unique');
         });
     }
 

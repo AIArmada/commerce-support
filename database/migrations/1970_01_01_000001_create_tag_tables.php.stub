@@ -10,13 +10,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (Schema::hasTable('tags')) {
+        $tags = (string) config('commerce-support.database.tables.tags', 'tags');
+        $taggables = (string) config('commerce-support.database.tables.taggables', 'taggables');
+
+        if (Schema::hasTable($tags)) {
             return;
         }
 
         $jsonType = commerce_json_column_type('commerce-support', 'jsonb');
 
-        commerce_schema_create_if_missing('tags', function (Blueprint $table) use ($jsonType): void {
+        commerce_schema_create_if_missing($tags, function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('type')->nullable()->index();
             $table->{$jsonType}('name');
@@ -26,12 +29,13 @@ return new class extends Migration
             $table->timestampsTz();
         });
 
-        commerce_schema_create_if_missing('taggables', function (Blueprint $table): void {
+        commerce_schema_create_if_missing($taggables, function (Blueprint $table): void {
             $table->foreignUuid('tag_id');
-            $table->foreignUuid('taggable_id');
-            $table->string('taggable_type');
+            // Morph key type follows Schema::defaultMorphKeyType() (see
+            // commerce-support.database.morph_key_type) so non-UUID models
+            // can be tagged when configured.
+            $table->morphs('taggable');
             $table->unique(['tag_id', 'taggable_id', 'taggable_type']);
-            $table->index(['taggable_id', 'taggable_type']);
         });
     }
 };

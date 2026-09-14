@@ -148,11 +148,13 @@ readonly class EnvironmentContext
             return (string) $metadata['channel'];
         }
 
-        $channel = $request->header('X-Channel')
-            ?? $request->header('X-Sales-Channel');
+        if (self::trustProxyHeaders()) {
+            $channel = $request->header('X-Channel')
+                ?? $request->header('X-Sales-Channel');
 
-        if ($channel !== null) {
-            return is_array($channel) ? $channel[0] : $channel;
+            if ($channel !== null) {
+                return is_array($channel) ? $channel[0] : $channel;
+            }
         }
 
         return 'web';
@@ -183,12 +185,14 @@ readonly class EnvironmentContext
             return (string) $metadata['country'];
         }
 
-        $country = $request->header('CF-IPCountry')
-            ?? $request->header('X-Country')
-            ?? $request->header('X-Geo-Country');
+        if (self::trustProxyHeaders()) {
+            $country = $request->header('CF-IPCountry')
+                ?? $request->header('X-Country')
+                ?? $request->header('X-Geo-Country');
 
-        if ($country !== null) {
-            return is_array($country) ? $country[0] : $country;
+            if ($country !== null) {
+                return is_array($country) ? $country[0] : $country;
+            }
         }
 
         return null;
@@ -200,12 +204,14 @@ readonly class EnvironmentContext
             return (string) $metadata['region'];
         }
 
-        $region = $request->header('CF-Region')
-            ?? $request->header('X-Region')
-            ?? $request->header('X-Geo-Region');
+        if (self::trustProxyHeaders()) {
+            $region = $request->header('CF-Region')
+                ?? $request->header('X-Region')
+                ?? $request->header('X-Geo-Region');
 
-        if ($region !== null) {
-            return is_array($region) ? $region[0] : $region;
+            if ($region !== null) {
+                return is_array($region) ? $region[0] : $region;
+            }
         }
 
         return null;
@@ -217,12 +223,14 @@ readonly class EnvironmentContext
             return (string) $metadata['city'];
         }
 
-        $city = $request->header('CF-IPCity')
-            ?? $request->header('X-City')
-            ?? $request->header('X-Geo-City');
+        if (self::trustProxyHeaders()) {
+            $city = $request->header('CF-IPCity')
+                ?? $request->header('X-City')
+                ?? $request->header('X-Geo-City');
 
-        if ($city !== null) {
-            return is_array($city) ? $city[0] : $city;
+            if ($city !== null) {
+                return is_array($city) ? $city[0] : $city;
+            }
         }
 
         return null;
@@ -234,9 +242,11 @@ readonly class EnvironmentContext
             return (string) $metadata['timezone'];
         }
 
-        $timezone = $request->header('X-Timezone');
-        if ($timezone !== null) {
-            return is_array($timezone) ? $timezone[0] : $timezone;
+        if (self::trustProxyHeaders()) {
+            $timezone = $request->header('X-Timezone');
+            if ($timezone !== null) {
+                return is_array($timezone) ? $timezone[0] : $timezone;
+            }
         }
 
         return config('app.timezone', 'UTC');
@@ -268,5 +278,19 @@ readonly class EnvironmentContext
             'term' => $request->query('utm_term'),
             'content' => $request->query('utm_content'),
         ];
+    }
+
+    /**
+     * Whether proxy/CDN-style headers (X-Channel, CF-IPCountry, X-Region,
+     * X-City, X-Timezone, ...) may steer channel/geo/timezone resolution.
+     *
+     * These headers are trivially spoofable by shoppers unless a trusted
+     * edge actually sets them, so they are ignored by default. Enable only
+     * when the deployment guarantees the headers originate from trusted
+     * infrastructure. Referer and UTM values are always untrusted hints.
+     */
+    private static function trustProxyHeaders(): bool
+    {
+        return (bool) config('commerce-support.targeting.trust_proxy_headers', false);
     }
 }

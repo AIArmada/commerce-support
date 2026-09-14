@@ -22,6 +22,16 @@ use AIArmada\CommerceSupport\Targeting\Exceptions\TargetingRuleEvaluationExcepti
 class TargetingEngine implements TargetingEngineInterface
 {
     /**
+     * Maximum nesting depth for custom and/or/not expressions.
+     */
+    public const MAX_EXPRESSION_DEPTH = 10;
+
+    /**
+     * Maximum total nodes in one custom expression.
+     */
+    public const MAX_EXPRESSION_NODES = 200;
+
+    /**
      * @var array<string, TargetingRuleEvaluator>
      */
     private array $evaluators = [];
@@ -153,12 +163,49 @@ class TargetingEngine implements TargetingEngineInterface
      *
      * @param  array<string, mixed>  $expression
      */
-    public function evaluateExpression(array $expression, TargetingContextInterface $context): bool
-    {
+    public function evaluateExpression(
+        array $expression,
+        TargetingContextInterface $context,
+        int $depth = 0,
+        ?bool &$truncated = null,
+        ?int &$nodes = null,
+    ): bool {
+        if ($depth === 0) {
+            $truncated = false;
+            $nodes = 0;
+        }
+
         if (empty($expression)) {
             return false;
         }
 
+        $nodes = ($nodes ?? 0) + 1;
+
+        if ($depth > self::MAX_EXPRESSION_DEPTH || $nodes > self::MAX_EXPRESSION_NODES) {
+            $truncated = true;
+
+            return false;
+        }
+
+        $result = $this->evaluateExpressionNode($expression, $context, $depth, $truncated, $nodes);
+
+        if ($depth === 0 && $truncated === true) {
+            return false;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $expression
+     */
+    private function evaluateExpressionNode(
+        array $expression,
+        TargetingContextInterface $context,
+        int $depth,
+        ?bool &$truncated,
+        ?int &$nodes,
+    ): bool {
         if (isset($expression['and'])) {
             $subExpressions = $expression['and'];
             if (! is_array($subExpressions) || $subExpressions === []) {
@@ -170,7 +217,7 @@ class TargetingEngine implements TargetingEngineInterface
                     return false;
                 }
 
-                if (! $this->evaluateExpression($subExpr, $context)) {
+                if (! $this->evaluateExpression($subExpr, $context, $depth + 1, $truncated, $nodes)) {
                     return false;
                 }
             }
@@ -189,7 +236,7 @@ class TargetingEngine implements TargetingEngineInterface
                     return false;
                 }
 
-                if ($this->evaluateExpression($subExpr, $context)) {
+                if ($this->evaluateExpression($subExpr, $context, $depth + 1, $truncated, $nodes)) {
                     return true;
                 }
             }
@@ -203,7 +250,7 @@ class TargetingEngine implements TargetingEngineInterface
                 return false;
             }
 
-            return ! $this->evaluateExpression($subExpr, $context);
+            return ! $this->evaluateExpression($subExpr, $context, $depth + 1, $truncated, $nodes);
         }
 
         return $this->evaluateRule($expression, $context);
@@ -300,12 +347,23 @@ class TargetingEngine implements TargetingEngineInterface
      * @param  array<string, mixed>  $expression
      * @return array<string>
      */
-    private function validateExpression(array $expression): array
+    private function validateExpression(array $expression, int $depth = 0, ?int &$nodes = null): array
     {
         $errors = [];
 
         if ($expression === []) {
             return ['Expression cannot be empty'];
+        }
+
+        if ($depth > self::MAX_EXPRESSION_DEPTH) {
+            return [sprintf('Expression exceeds maximum nesting depth of %d', self::MAX_EXPRESSION_DEPTH)];
+        }
+
+        $nodes ??= 0;
+        $nodes++;
+
+        if ($nodes > self::MAX_EXPRESSION_NODES) {
+            return [sprintf('Expression exceeds maximum node count of %d', self::MAX_EXPRESSION_NODES)];
         }
 
         if (isset($expression['and'])) {
@@ -323,7 +381,7 @@ class TargetingEngine implements TargetingEngineInterface
                         continue;
                     }
 
-                    $errors = array_merge($errors, $this->validateExpression($subExpr));
+                    $errors = array_merge($errors, $this->validateExpression($subExpr, $depth + 1, $nodes));
                 }
             }
         } elseif (isset($expression['or'])) {
@@ -341,14 +399,14 @@ class TargetingEngine implements TargetingEngineInterface
                         continue;
                     }
 
-                    $errors = array_merge($errors, $this->validateExpression($subExpr));
+                    $errors = array_merge($errors, $this->validateExpression($subExpr, $depth + 1, $nodes));
                 }
             }
         } elseif (isset($expression['not'])) {
             if (! is_array($expression['not']) || $expression['not'] === []) {
                 $errors[] = 'NOT expression must be an object';
             } else {
-                $errors = array_merge($errors, $this->validateExpression($expression['not']));
+                $errors = array_merge($errors, $this->validateExpression($expression['not'], $depth + 1, $nodes));
             }
         } else {
             $errors = array_merge($errors, $this->validateRule($expression));

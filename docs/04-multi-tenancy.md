@@ -455,6 +455,24 @@ $owner = OwnerContext::fromTypeAndId(
 );
 ```
 
+`fromTypeAndId()` instantiates without querying. On trust boundaries
+(queued jobs, batch runners, inbound payloads) use
+`fromTypeAndIdOrFail()`, which verifies the owner row exists and throws
+`ModelNotFoundException` for orphaned tuples instead of yielding a working
+phantom scope.
+
+```php
+$owner = OwnerContext::fromTypeAndIdOrFail(
+    $payload['owner_type'],
+    $payload['owner_id']
+);
+```
+
+`OwnerBatchRunner` streams distinct tuples via cursor and validates every
+tuple (structurally and for owner existence) before running any callback.
+During iteration it suppresses include-global matching through a
+request-scoped override, so global config is never mutated.
+
 ## Write Protection
 
 ### OwnerWriteGuard

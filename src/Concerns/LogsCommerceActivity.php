@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Concerns;
 
+use AIArmada\CommerceSupport\Support\SensitiveAttributes;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
@@ -14,7 +15,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * spatie/laravel-activitylog with consistent defaults for commerce operations.
  *
  * @example
-        return $this->fillable;
+ * ```php
  * use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
  *
  * class Order extends Model
@@ -67,13 +68,16 @@ trait LogsCommerceActivity // @phpstan-ignore trait.unused
     /**
      * Get the attributes that should be logged.
      *
-     * Override this method to specify which attributes to track.
+     * Override this method with an explicit per-model allowlist to specify
+     * which attributes to track. The default is the fillable list minus
+     * sensitive attributes (credentials and PII), which are never logged
+     * unless a model explicitly allowlists them.
      *
      * @return array<int, string>
      */
     protected function getLoggableAttributes(): array
     {
-        return $this->fillable;
+        return SensitiveAttributes::exclude($this->fillable);
     }
 
     /**

@@ -34,8 +34,13 @@ final class NotificationPreference extends Model
     use HasFactory;
     use HasUuids;
 
+    /**
+     * The owning user identity is set server-side via the owning
+     * relationship; only preference content is mass-assignable.
+     *
+     * @var list<string>
+     */
     protected $fillable = [
-        'user_type', 'user_id',
         'category', 'channel',
         'is_enabled',
         'quiet_hours_start', 'quiet_hours_end',

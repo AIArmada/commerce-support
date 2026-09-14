@@ -29,7 +29,7 @@ final class OwnerScope implements Scope
         OwnerQuery::applyToEloquentBuilder(
             $builder,
             $owner,
-            $this->config->includeGlobal,
+            OwnerScopeOverride::suppressIncludeGlobal() ? false : $this->config->includeGlobal,
             $this->config->ownerTypeColumn,
             $this->config->ownerIdColumn,
         );

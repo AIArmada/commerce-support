@@ -51,7 +51,7 @@ final readonly class OwnerReference implements OwnerScopeIdentifiable
 
 ## OwnerCache
 
-Prevent cache bleed across tenants by building owner-scoped cache keys in the format `owner:{ownerScopeKey}:{logicalKey}`.
+Prevent cache bleed across tenants by building owner-scoped cache keys in the format `owner:{ownerScopeKey}:v{version}:{logicalKey}`.
 
 ### Basic Usage
 
@@ -82,9 +82,9 @@ OwnerCache::forgetOwner($owner);
 ### Key Features
 
 - **Automatic scope key generation**: Uses `OwnerScopeKey::forOwner($owner)` to create a hash unique to each owner
-- **Global context support**: Pass `null` as owner for global/unauthenticated caches (key: `owner:global:logicalKey`)
-- **Tag-aware operations**: On drivers that support tags (Redis, Memcached), cache reads and writes are grouped under an owner tag for efficient `forgetOwner()` cleanup
-- **Fallback for file/array drivers**: Uses normal cache operations when tags are unavailable; in that case `forgetOwner()` is a no-op and callers should use explicit `forget()` instead
+- **Global context support**: Pass `null` as owner for global/unauthenticated caches (key: `owner:global:v1:logicalKey`)
+- **Portable invalidation**: `forgetOwner()` bumps the owner's cache version, so every versioned key stops resolving on any driver — including file/array/database drivers without tag support. Tag flush is kept as a best-effort memory release where supported
+- **Stampede protection**: `remember()` rebuilds run under an atomic lock; concurrent misses wait for the in-flight rebuild instead of recomputing, and fall back to an uncached computation if the lock cannot be acquired
 
 ### What OwnerCache Is For
 
@@ -146,8 +146,15 @@ OwnerFilesystem::delete($owner, 'invoices/2025-01.pdf');
 
 ### Safety Features
 
-- **Path traversal prevention**: Rejects paths with `..` or leading `/`
+- **Path traversal prevention**: Rejects `..`/`.`/empty segments, absolute and drive-letter paths, backslash separators, control characters, and single- or double-URL-encoded evasions
 - **Owner scope enforcement**: All operations happen within `owners/{ownerScopeKey}/` prefix
+- **Pinned disk**: Set `commerce-support.filesystem.disk` to force a private disk instead of the application default:
+
+```php
+'filesystem' => [
+    'disk' => 'local',
+],
+```
 - **Consistent scoping**: Same owner-scoped key across all methods ensures no cross-tenant access
 
 ### When to Use

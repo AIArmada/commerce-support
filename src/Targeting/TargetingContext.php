@@ -87,25 +87,7 @@ readonly class TargetingContext implements TargetingContextInterface
      */
     public function getUserSegments(): array
     {
-        if ($this->user === null) {
-            return ['guest'];
-        }
-
-        if (method_exists($this->user, 'getSegments')) {
-            return $this->user->getSegments();
-        }
-
-        if (property_exists($this->user, 'segments') || isset($this->user->segments)) {
-            $segments = $this->user->segments;
-
-            return is_array($segments) ? $segments : [];
-        }
-
-        if (method_exists($this->user, 'getRoleNames')) {
-            return $this->user->getRoleNames()->toArray();
-        }
-
-        return [];
+        return $this->userContext->segments;
     }
 
     public function getUserAttribute(string $attribute): mixed
@@ -119,89 +101,22 @@ readonly class TargetingContext implements TargetingContextInterface
 
     public function isFirstPurchase(): bool
     {
-        if ($this->user === null) {
-            return true;
-        }
-
-        if (isset($this->metadata['is_first_purchase'])) {
-            return (bool) $this->metadata['is_first_purchase'];
-        }
-
-        $isFirstPurchase = $this->getUserAttribute('is_first_purchase');
-        if ($isFirstPurchase !== null) {
-            return (bool) $isFirstPurchase;
-        }
-
-        if (method_exists($this->user, 'orders')) {
-            return $this->user->orders()->count() === 0;
-        }
-
-        $totalOrders = $this->getUserAttribute('total_orders');
-
-        if ($totalOrders !== null) {
-            return (int) $totalOrders === 0;
-        }
-
-        return false;
+        return $this->userContext->isFirstPurchase;
     }
 
     public function getCustomerLifetimeValue(): int
     {
-        if ($this->user === null) {
-            return 0;
-        }
-
-        if (isset($this->metadata['clv'])) {
-            return (int) $this->metadata['clv'];
-        }
-
-        if (method_exists($this->user, 'getLifetimeValue')) {
-            return (int) $this->user->getLifetimeValue();
-        }
-
-        $clv = $this->getUserAttribute('customer_lifetime_value')
-            ?? $this->getUserAttribute('lifetime_value')
-            ?? $this->getUserAttribute('clv')
-            ?? $this->getUserAttribute('total_spent');
-
-        return (int) ($clv ?? 0);
+        return $this->userContext->lifetimeValue;
     }
 
     public function getCartValue(): int
     {
-        if ($this->cart === null) {
-            return 0;
-        }
-
-        if (method_exists($this->cart, 'getRawSubtotalWithoutConditions')) {
-            return $this->cart->getRawSubtotalWithoutConditions();
-        }
-
-        if (method_exists($this->cart, 'getSubtotal')) {
-            return (int) $this->cart->getSubtotal();
-        }
-
-        return 0;
+        return $this->cartContext->value;
     }
 
     public function getCartQuantity(): int
     {
-        if ($this->cart === null) {
-            return 0;
-        }
-
-        if (method_exists($this->cart, 'getItems')) {
-            $items = $this->cart->getItems();
-            if ($items instanceof Collection) {
-                return $items->sum(fn ($item) => $item->quantity ?? 1);
-            }
-        }
-
-        if (method_exists($this->cart, 'getTotalQuantity')) {
-            return $this->cart->getTotalQuantity();
-        }
-
-        return 0;
+        return $this->cartContext->quantity;
     }
 
     /**
@@ -209,41 +124,7 @@ readonly class TargetingContext implements TargetingContextInterface
      */
     public function getProductIdentifiers(): array
     {
-        if ($this->cart === null || ! method_exists($this->cart, 'getItems')) {
-            return [];
-        }
-
-        $items = $this->cart->getItems();
-        if (! $items instanceof Collection) {
-            return [];
-        }
-
-        return $items
-            ->map(function ($item): ?string {
-                $sku = $item->getAttribute('sku') ?? null;
-                if ($sku !== null) {
-                    return (string) $sku;
-                }
-
-                $model = $item->associatedModel ?? null;
-                if ($model === null) {
-                    return $item->id ?? null;
-                }
-
-                if (method_exists($model, 'getSku')) {
-                    return $model->getSku();
-                }
-
-                if (is_object($model) && property_exists($model, 'sku')) {
-                    return $model->sku;
-                }
-
-                return $item->id ?? null;
-            })
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        return $this->cartContext->productIdentifiers;
     }
 
     /**
@@ -251,110 +132,23 @@ readonly class TargetingContext implements TargetingContextInterface
      */
     public function getProductCategories(): array
     {
-        if ($this->cart === null || ! method_exists($this->cart, 'getItems')) {
-            return [];
-        }
-
-        $items = $this->cart->getItems();
-        if (! $items instanceof Collection) {
-            return [];
-        }
-
-        return $items
-            ->flatMap(function ($item): array {
-                $category = $item->getAttribute('category') ?? null;
-                if ($category !== null) {
-                    return is_array($category) ? $category : [(string) $category];
-                }
-
-                $model = $item->associatedModel ?? null;
-                if ($model === null) {
-                    return [];
-                }
-
-                if (method_exists($model, 'getCategories')) {
-                    return $model->getCategories();
-                }
-
-                if ($model instanceof Model && method_exists($model, 'categories')) {
-                    $categories = $model->getRelationValue('categories');
-
-                    if ($categories instanceof Collection) {
-                        return $categories->pluck('slug')->all();
-                    }
-                }
-
-                if (is_object($model) && property_exists($model, 'category')) {
-                    return [$model->category];
-                }
-
-                if (is_object($model) && property_exists($model, 'category_id')) {
-                    return [(string) $model->category_id];
-                }
-
-                return [];
-            })
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        return $this->cartContext->productCategories;
     }
 
     public function getChannel(): string
     {
-        if (isset($this->metadata['channel'])) {
-            return (string) $this->metadata['channel'];
-        }
-
-        if ($this->request !== null) {
-            $channel = $this->request->header('X-Channel')
-                ?? $this->request->header('X-Sales-Channel');
-
-            if ($channel !== null) {
-                return is_array($channel) ? $channel[0] : $channel;
-            }
-        }
-
-        return 'web';
+        return $this->environmentContext->channel;
     }
 
     public function getDevice(): string
     {
-        if (isset($this->metadata['device'])) {
-            return (string) $this->metadata['device'];
-        }
-
-        if ($this->request === null) {
-            return 'desktop';
-        }
-
-        $userAgent = $this->request->userAgent() ?? '';
-
-        if (preg_match('/tablet|ipad/i', $userAgent)) {
-            return 'tablet';
-        }
-
-        if (preg_match('/mobile|iphone|ipod|android|blackberry|opera mini|iemobile|wpdesktop/i', $userAgent)) {
-            return 'mobile';
-        }
-
-        return 'desktop';
+        return $this->environmentContext->device;
     }
 
     public function getCountry(): ?string
     {
-        if (isset($this->metadata['country'])) {
-            return (string) $this->metadata['country'];
-        }
-
-        if ($this->request !== null) {
-            $country = $this->request->header('CF-IPCountry')
-                ?? $this->request->header('X-Country')
-                ?? $this->request->header('X-Geo-Country');
-
-            if ($country !== null) {
-                return is_array($country) ? $country[0] : $country;
-            }
+        if ($this->environmentContext->country !== null) {
+            return $this->environmentContext->country;
         }
 
         if ($this->user !== null) {
@@ -371,18 +165,7 @@ readonly class TargetingContext implements TargetingContextInterface
 
     public function getReferrer(): ?string
     {
-        if (isset($this->metadata['referrer'])) {
-            return (string) $this->metadata['referrer'];
-        }
-
-        if ($this->request !== null) {
-            $referer = $this->request->header('Referer');
-            if ($referer !== null) {
-                return is_array($referer) ? $referer[0] : $referer;
-            }
-        }
-
-        return null;
+        return $this->environmentContext->referrer;
     }
 
     public function getCurrentTime(?string $timezone = null): CarbonImmutable

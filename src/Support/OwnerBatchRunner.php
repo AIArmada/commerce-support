@@ -42,15 +42,13 @@ final class OwnerBatchRunner
             return $callback();
         }
 
-        $columns = OwnerTupleColumns::forModelClass($this->modelClass);
-
-        $owners = $this->discoverOwners($columns);
+        $owners = $this->discoverOwners();
 
         if ($owners->isEmpty()) {
             return OwnerContext::withOwner(null, $callback);
         }
 
-        return $this->runForOwners($owners, $columns, $callback);
+        return $this->runForOwners($owners, $callback);
     }
 
     /**
@@ -67,15 +65,13 @@ final class OwnerBatchRunner
             return collect([$callback()]);
         }
 
-        $columns = OwnerTupleColumns::forModelClass($this->modelClass);
-
-        $owners = $this->discoverOwners($columns);
+        $owners = $this->discoverOwners();
 
         if ($owners->isEmpty()) {
             return collect([OwnerContext::withOwner(null, $callback)]);
         }
 
-        return $this->collectForOwners($owners, $columns, $callback);
+        return $this->collectForOwners($owners, $callback);
     }
 
     private function isOwnerDisabled(): bool
@@ -84,62 +80,85 @@ final class OwnerBatchRunner
             && ! (bool) config($this->enabledConfigKey, false);
     }
 
-    private function discoverOwners(OwnerTupleColumns $columns): Collection
+    /**
+     * Discover, validate, and resolve every distinct owner tuple.
+     *
+     * The tuple scan streams via cursor; structural validation and owner
+     * existence checks all run here so a malformed or orphaned tuple fails
+     * fast before any callback executes.
+     *
+     * @return Collection<int, ?Model> Resolved owners (null = explicit global, deduplicated).
+     */
+    private function discoverOwners(): Collection
     {
         /** @var TModel $model */
         $model = new $this->modelClass;
 
-        return DB::table($model->getTable())
+        $columns = OwnerTupleColumns::forModelClass($this->modelClass);
+
+        /** @var Collection<int, ?Model> $owners */
+        $owners = collect();
+        $seenGlobal = false;
+
+        $rows = DB::table($model->getTable())
             ->select([$columns->ownerTypeColumn, $columns->ownerIdColumn])
             ->distinct()
-            ->get();
+            ->orderBy($columns->ownerTypeColumn)
+            ->orderBy($columns->ownerIdColumn)
+            ->cursor();
+
+        foreach ($rows as $row) {
+            $parsed = OwnerTupleParser::fromRow($row, $columns);
+
+            if ($parsed->isExplicitGlobal()) {
+                if ($seenGlobal) {
+                    continue;
+                }
+
+                $seenGlobal = true;
+                $owners->push(null);
+
+                continue;
+            }
+
+            $owners->push($parsed->toOwnerModelOrFail());
+        }
+
+        // @phpstan-ignore-next-line Collection covariance false positive with exact array shape.
+        return $owners;
     }
 
-    private function runForOwners(Collection $owners, OwnerTupleColumns $columns, callable $callback): mixed
+    /**
+     * @param  Collection<int, ?Model>  $owners
+     */
+    private function runForOwners(Collection $owners, callable $callback): mixed
     {
-        $results = $this->collectForOwners($owners, $columns, $callback);
+        $results = $this->collectForOwners($owners, $callback);
 
         return $this->reduce($results);
     }
 
     /**
+     * @param  Collection<int, ?Model>  $owners
      * @return Collection<int, mixed>
      */
-    private function collectForOwners(Collection $owners, OwnerTupleColumns $columns, callable $callback): Collection
+    private function collectForOwners(Collection $owners, callable $callback): Collection
     {
-        $includeGlobal = $this->resolveIncludeGlobal();
-
-        if ($includeGlobal) {
-            config()->set($this->includeGlobalConfigKey, false);
-        }
-
-        try {
-            $processedGlobal = false;
+        $execute = function () use ($owners, $callback): Collection {
             $results = [];
 
-            foreach ($owners as $row) {
-                $parsed = OwnerTupleParser::fromRow($row, $columns);
-
-                if ($parsed->isExplicitGlobal()) {
-                    if ($processedGlobal) {
-                        continue;
-                    }
-
-                    $processedGlobal = true;
-                }
-
-                $results[] = OwnerContext::withOwner(
-                    $parsed->toOwnerModel(),
-                    $callback,
-                );
+            foreach ($owners as $owner) {
+                $results[] = OwnerContext::withOwner($owner, $callback);
             }
-        } finally {
-            if ($includeGlobal) {
-                config()->set($this->includeGlobalConfigKey, true);
-            }
+
+            return collect($results);
+        };
+
+        if ($this->resolveIncludeGlobal()) {
+            return OwnerScopeOverride::withoutIncludeGlobal($execute);
         }
 
-        return collect($results);
+        return $execute();
     }
 
     private function resolveIncludeGlobal(): bool
