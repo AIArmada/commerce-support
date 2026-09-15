@@ -25,17 +25,22 @@ final class ProcessWebhookCallAction
     private const STALE_PROCESSING_MINUTES = 30;
 
     /**
-     * Canonical owner key for the dedup unique, or null when the delivery
-     * carries no owner identity.
+     * Canonical owner key for the dedup unique.
+     *
+     * Ownerless deliveries hash to a fixed sentinel instead of null: null
+     * never collides in a unique index, so concurrent ownerless duplicates
+     * would both claim and both process. The sentinel input is
+     * domain-separated from 'owner:{type}|{id}' and cannot overlap a real
+     * owner hash.
      *
      * @param  array{0: string|null, 1: string|null}  $owner
      */
-    public static function ownerHashFor(array $owner): ?string
+    public static function ownerHashFor(array $owner): string
     {
         [$type, $id] = $owner;
 
         if ($type === null || $id === null) {
-            return null;
+            return hash('sha256', 'commerce-support:ownerless-webhook-delivery');
         }
 
         return hash('sha256', 'owner:' . $type . '|' . $id);
@@ -44,6 +49,16 @@ final class ProcessWebhookCallAction
     public static function supportsOwnerDedup(): bool
     {
         return Schema::hasColumns((new WebhookCall)->getTable(), ['owner_type', 'owner_id', 'owner_hash']);
+    }
+
+    /**
+     * Stable identity for deliveries without a provider event id.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private static function payloadHash(array $payload): string
+    {
+        return hash('sha256', (string) json_encode($payload));
     }
 
     /**
@@ -111,9 +126,12 @@ final class ProcessWebhookCallAction
      * Cross-delivery deduplication is enforced by the
      * UNIQUE(name, event_id, event_type, owner_hash) constraint: the loser
      * of a concurrent claim marks itself processed as a duplicate without
-     * running side effects. Deliveries without an owner identity store a
-     * NULL owner hash, which never collides at the database level; those
-     * still deduplicate through the processed-row check.
+     * running side effects. Every stamped member is non-null — deliveries
+     * without a provider event id fall back to a payload hash, and
+     * deliveries without an owner identity hash to the ownerless sentinel
+     * — because null never collides in a unique index. Sequential
+     * redeliveries that arrive after the first delivery processed are
+     * caught by the processed-row check instead.
      *
      * @param  callable(array<string, mixed>): string  $extractEventType
      * @param  callable(array<string, mixed>): (string|null)  $extractEventId
@@ -145,7 +163,7 @@ final class ProcessWebhookCallAction
                 /** @var array<string, mixed> $payload */
                 $payload = $locked->payload ?? [];
                 $eventType = $extractEventType($payload);
-                $eventId = $extractEventId($payload);
+                $eventId = $extractEventId($payload) ?? self::payloadHash($payload);
 
                 $attributes = [
                     'status' => 'processing',
@@ -153,8 +171,10 @@ final class ProcessWebhookCallAction
                     'event_id' => $eventId,
                 ];
 
-                if ($extractOwner !== null && self::supportsOwnerDedup()) {
-                    [$ownerType, $ownerId] = $extractOwner($payload);
+                if (self::supportsOwnerDedup()) {
+                    [$ownerType, $ownerId] = $extractOwner !== null
+                        ? $extractOwner($payload)
+                        : [null, null];
 
                     $attributes['owner_type'] = $ownerType;
                     $attributes['owner_id'] = $ownerId;

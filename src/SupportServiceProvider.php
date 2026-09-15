@@ -252,28 +252,6 @@ final class SupportServiceProvider extends PackageServiceProvider
                 );
             }
         }
-
-        if ($this->tableExists('webhook_calls')) {
-            $webhookLifecycleMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000005_add_webhook_lifecycle_columns.php.stub';
-
-            if (is_file($webhookLifecycleMigrationPath)) {
-                ConditionalMigrationLoader::loadFileIfMissing(
-                    $this,
-                    $webhookLifecycleMigrationPath,
-                    'add_webhook_lifecycle_columns'
-                );
-            }
-
-            $webhookOwnerDedupMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000006_add_owner_dedup_to_webhook_calls_table.php.stub';
-
-            if (is_file($webhookOwnerDedupMigrationPath)) {
-                ConditionalMigrationLoader::loadFileIfMissing(
-                    $this,
-                    $webhookOwnerDedupMigrationPath,
-                    'add_owner_dedup_to_webhook_calls_table'
-                );
-            }
-        }
     }
 
     private function shouldLoadWebhookCallsMigration(): bool

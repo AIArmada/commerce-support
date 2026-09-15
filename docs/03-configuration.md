@@ -68,7 +68,7 @@ return [
 
 #### `morph_key_type`
 
-Controls the Schema default morph key type for polymorphic relationships.
+Controls the Schema default morph key type for polymorphic relationships. It applies to owner morphs declared with `nullableMorphs('owner')`; non-owner holder morphs with explicit string or uuid columns (seating hosts and holders, pass registrations) are intentionally independent of this setting so they keep accepting both integer-like and uuid keys whatever the owner key shape is.
 
 | Value | Description |
 |-------|-------------|

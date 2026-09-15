@@ -114,17 +114,20 @@ abstract class CommerceWebhookProcessor extends ProcessWebhookJob
     /**
      * Determine if this webhook event was already processed in a different webhook row.
      *
-     * Deduplication requires the canonical provider id, the event type, and
-     * the owner identity to match, so two owners' identical provider events
-     * never collapse into one delivery.
+     * Deduplication compares the stamped claim identity (event id, event
+     * type, owner hash), so it overlaps the unique constraint exactly: the
+     * claim falls back to a payload hash when the provider id is missing
+     * and to the ownerless sentinel when no owner identity is present.
+     * Two owners' identical provider events never collapse into one
+     * delivery because their owner hashes differ.
      *
      * @param  array<string, mixed>  $payload
      */
     protected function isDuplicateProcessedEvent(WebhookCall $current, array $payload, string $eventType): bool
     {
-        $eventId = $this->extractEventId($payload);
+        $eventId = $current->getAttribute('event_id') ?? $this->extractEventId($payload);
 
-        if ($eventId === null) {
+        if (! is_string($eventId) || $eventId === '') {
             return false;
         }
 
