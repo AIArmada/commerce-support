@@ -554,6 +554,79 @@ TextInput::make('slug')
 
 The model must expose `::ownerScopeConfig()` (provided by `HasOwner`). When owner scoping is disabled for the model the rule is returned unchanged; with no resolved owner it constrains to global-only rows.
 
+## UniqueSlug
+
+`UniqueSlug::build()` generates a unique slug for any model with a `slug` column. It complements `spatie/laravel-sluggable` (model-event generation): use it for explicit programmatic flows such as bulk imports, console backfills, and save actions that assemble slugs from several parts:
+
+```php
+use AIArmada\CommerceSupport\Support\UniqueSlug;
+use App\Models\Venue; // your model with a `slug` column
+
+$slug = UniqueSlug::build(
+    modelClass: Venue::class,
+    baseSlug: 'grand-hall',
+    middleSegments: ['kuala-lumpur'], // inserted before the numeric suffix
+    trailingSuffix: 'my',             // appended last
+    ignoreKey: $venue->getKey(),      // excluded on updates
+);
+```
+
+Existing slugs preload in one query and resolve in memory; the lookup uses `LikeSearch`, and candidates truncate to 200 characters (bases longer than that still detect truncated collisions through a deterministic escape suffix). Global scopes apply to the collision check; pass `withoutGlobalScopes: true` when the slug feeds a global namespace such as pure-slug public URLs rather than an owner-scoped one.
+
+## StableModelOrder
+
+`StableModelOrder` orders any model collection deterministically by `created_at` ascending with the primary key as tiebreak, so batch sync passes assign stable outcomes regardless of load order:
+
+```php
+use AIArmada\CommerceSupport\Support\StableModelOrder;
+use App\Models\Venue; // your model
+
+$ordered = StableModelOrder::sort($venues);
+$position = StableModelOrder::sequence($venues, $venue->getKey()); // 1-based, or null
+
+$didChange = StableModelOrder::sync($venues, function (Venue $venue): bool {
+    return $this->syncCanonicalSlug($venue);
+});
+```
+
+## PayloadDiff
+
+`PayloadDiff::changed()` returns the entries of a state array whose value differs from the original — the dirty-field computation behind edit forms, audit snapshots, and sync checks. Values normalize before comparison (enums, dates, `Arrayable`, key-sorted maps, numeric `*_id` strings), so Livewire state compares by meaning rather than PHP type:
+
+```php
+use AIArmada\CommerceSupport\Support\PayloadDiff;
+
+$changes = PayloadDiff::changed($state, $original); // ['name' => 'New name']
+PayloadDiff::equal($state['owner_id'], $original['owner_id'], 'owner_id'); // '5' vs 5: true
+```
+
+Only keys present in the original are considered; new keys are ignored.
+
+## RequestFingerprint
+
+`RequestFingerprint::resolve()` returns a stable submitter identity for authenticated users and guests alike, for guest-capable submissions (reports, reviews, applications) and rate-limit keys:
+
+```php
+use AIArmada\CommerceSupport\Support\RequestFingerprint;
+
+RequestFingerprint::resolve($request); // 'user:01H...' or 'guest:9f2c…'
+```
+
+Guests hash to `sha256(ip|user-agent)`: repeat submitters stay recognizable without storing their IP or user agent.
+
+## CanonicalSlug
+
+`CanonicalSlug::persist()` sets a model's canonical slug and records a redirect from the previous one through a host-provided `SlugRedirectRecorder`. Use it for pure-slug public URLs, where spatie self-healing URLs cannot apply (they need ID-bearing URLs) and old slugs must keep resolving:
+
+```php
+use AIArmada\CommerceSupport\Contracts\SlugRedirectRecorder;
+use AIArmada\CommerceSupport\Support\CanonicalSlug;
+
+$changed = CanonicalSlug::persist($venue, $slug, app(SlugRedirectRecorder::class));
+```
+
+Unsaved slug edits on the model are discarded in favor of the stored value first; the write itself is quiet and timestamp-preserving. `CanonicalSlug::syncChanged()` records a redirect for a slug the caller already changed.
+
 ## Exception Classes
 
 ### CommerceException

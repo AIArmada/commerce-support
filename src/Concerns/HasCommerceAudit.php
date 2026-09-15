@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Concerns;
 
+use AIArmada\CommerceSupport\Support\PayloadDiff;
 use AIArmada\CommerceSupport\Support\SensitiveAttributes;
 use OwenIt\Auditing\Auditable;
+use OwenIt\Auditing\Events\AuditCustom;
 use OwenIt\Auditing\Models\Audit;
 
 /**
@@ -99,6 +101,82 @@ trait HasCommerceAudit // @phpstan-ignore trait.unused
         $data['tags'] = $tags === [] ? null : implode(',', $tags);
 
         return $data;
+    }
+
+    /**
+     * Record a custom audit event with explicit old/new values.
+     *
+     * Model-level and relation-level changes that Eloquent events never see
+     * (related-state edits from admin pages, sync operations) audit through
+     * here. Empty value sets record nothing.
+     *
+     * @param  array<string, mixed>  $oldValues
+     * @param  array<string, mixed>  $newValues
+     */
+    public function recordCustomAudit(string $event, array $oldValues, array $newValues): void
+    {
+        if ($oldValues === [] && $newValues === []) {
+            return;
+        }
+
+        $previousAuditEvent = $this->auditEvent;
+        $previousAuditCustomOld = is_array($this->auditCustomOld ?? null) ? $this->auditCustomOld : [];
+        $previousAuditCustomNew = is_array($this->auditCustomNew ?? null) ? $this->auditCustomNew : [];
+        $previousIsCustomEvent = $this->isCustomEvent;
+
+        $this->auditEvent = $event;
+        $this->auditCustomOld = $oldValues;
+        $this->auditCustomNew = $newValues;
+        $this->isCustomEvent = true;
+
+        try {
+            $this->preloadResolverData();
+
+            event(new AuditCustom($this));
+        } finally {
+            $this->auditEvent = $previousAuditEvent;
+            $this->auditCustomOld = $previousAuditCustomOld;
+            $this->auditCustomNew = $previousAuditCustomNew;
+            $this->isCustomEvent = $previousIsCustomEvent;
+        }
+    }
+
+    /**
+     * Diff two snapshots and record a custom audit for the differences.
+     *
+     * Comparison runs through {@see PayloadDiff}, so enum, date, and
+     * identifier representations compare by meaning rather than PHP type.
+     *
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     */
+    public function recordCustomAuditDifferences(string $event, array $before, array $after): void
+    {
+        $oldValues = [];
+        $newValues = [];
+
+        foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $attribute) {
+            $beforeHasValue = array_key_exists($attribute, $before);
+            $afterHasValue = array_key_exists($attribute, $after);
+
+            if ($beforeHasValue && $afterHasValue && PayloadDiff::equal(
+                $before[$attribute],
+                $after[$attribute],
+                is_string($attribute) ? $attribute : null,
+            )) {
+                continue;
+            }
+
+            if ($beforeHasValue) {
+                $oldValues[$attribute] = $before[$attribute];
+            }
+
+            if ($afterHasValue) {
+                $newValues[$attribute] = $after[$attribute];
+            }
+        }
+
+        $this->recordCustomAudit($event, $oldValues, $newValues);
     }
 
     /**

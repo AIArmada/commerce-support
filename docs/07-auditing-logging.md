@@ -137,6 +137,33 @@ foreach ($audits as $audit) {
 }
 ```
 
+### Custom audits
+
+Model-level and relation-level changes that Eloquent events never see (related-state
+edits from admin pages, sync operations) audit through explicit custom events:
+
+```php
+$order->recordCustomAudit('notes_merged', ['notes' => $before], ['notes' => $after]);
+
+$order->recordCustomAuditDifferences('items_synced', $beforeSnapshot, $afterSnapshot);
+```
+
+`recordCustomAuditDifferences()` diffs two snapshots and records only the changes,
+comparing through `PayloadDiff` so enums, dates, and identifier representations match
+by meaning rather than PHP type. Empty diffs record nothing.
+
+Redact sensitive attributes with `FixedValueRedactor` through owen-it's
+`$attributeModifiers`:
+
+```php
+use AIArmada\CommerceSupport\Support\FixedValueRedactor;
+
+protected array $attributeModifiers = [
+    'password' => FixedValueRedactor::class,
+    'token' => FixedValueRedactor::class,
+];
+```
+
 ## Activity Logging (Business Events)
 
 ### Setup
