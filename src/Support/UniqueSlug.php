@@ -26,7 +26,7 @@ final class UniqueSlug
     /**
      * @param  class-string<Model>  $modelClass
      * @param  list<string>  $middleSegments  Extra segments inserted between the base and the numeric suffix.
-     * @param  int|string|null  $ignoreKey  Primary key excluded from the collision check (record updates).
+     * @param  int|string|null  $ignoreKey  Primary key excluded from the collision check (record updates). Empty strings are treated as null.
      * @param  bool  $withoutGlobalScopes  Check collisions across all rows, ignoring global scopes such as owner scoping. Needed when the slug feeds a global namespace (pure-slug public URLs) rather than an owner-scoped one.
      */
     public static function build(
@@ -40,6 +40,8 @@ final class UniqueSlug
         if ($baseSlug === '') {
             throw new InvalidArgumentException('The base slug must not be empty.');
         }
+
+        $ignoreKey = $ignoreKey === '' ? null : $ignoreKey;
 
         $query = $modelClass::query();
 
