@@ -19,6 +19,32 @@ $score = StringSimilarity::score($normalized, 'al muttaqin');
 
 Callers retain their own candidate fields, comparability rules, minimum scores, maximum distances, and search-index policies; this utility only supplies the reusable mechanics.
 
+## LikeSearch
+
+`LikeSearch` builds LIKE predicates for user-supplied search input with explicit, driver-aware escaping. Never interpolate `%{$search}%` by hand: unescaped input lets `%` and `_` act as wildcards, hand-rolled backslash escaping matches nothing on SQLite (no default escape character), and a literal `ESCAPE '\'` is a MySQL syntax error. These helpers keep the escaping and the `ESCAPE` declaration in one place:
+
+```php
+use AIArmada\CommerceSupport\Support\LikeSearch;
+
+// On an Eloquent or query builder (adds the pattern binding + ESCAPE clause)
+$query = LikeSearch::whereLike(User::query(), 'name', LikeSearch::contains($search));
+$query = LikeSearch::orWhereLike($query, 'email', LikeSearch::contains($search));
+
+// Pattern builders escape \, %, and _ for you
+LikeSearch::contains($search);   // %escaped%
+LikeSearch::startsWith($search); // escaped%
+LikeSearch::endsWith($search);   // %escaped
+```
+
+For raw expressions, use `LikeSearch::escape($value)` for the pattern and append `LikeSearch::escapeClause($source)` so MySQL gets `ESCAPE '\\'` while SQLite, Postgres, and SQL Server get `ESCAPE '\'`:
+
+```php
+$escape = LikeSearch::escapeClause($query);
+$query->whereRaw("LOWER(name) LIKE ? {$escape}", [mb_strtolower(LikeSearch::contains($search))]);
+```
+
+On Postgres the builder helpers emit `ILIKE`, so search is case-insensitive on every driver.
+
 ## Contract Test Traits
 
 Three test traits to verify that implementing packages comply with core contracts.
@@ -511,6 +537,22 @@ OwnerQuery::applyToEloquentBuilder($query, $owner, includeGlobal: false);
 $query = DB::table('products');
 OwnerQuery::applyToQueryBuilder($query, $owner, includeGlobal: false);
 ```
+
+## OwnerUniqueRule
+
+Filament `TextInput::make(...)->unique(...)` checks are global by default: on owner-scoped models that both blocks owners from reusing each other's slugs/codes and leaks cross-owner existence through validation errors. `OwnerUniqueRule::scopeToOwner()` constrains a `Unique` rule to the model's owner scope, honoring the model's own scope config (enabled flag, include-global behavior, and any customized owner column names):
+
+```php
+use AIArmada\CommerceSupport\Support\OwnerUniqueRule;
+use AIArmada\Docs\Models\Doc;
+use Filament\Forms\Components\TextInput;
+use Illuminate\Validation\Rules\Unique;
+
+TextInput::make('slug')
+    ->unique(ignoreRecord: true, modifyRuleUsing: fn (Unique $rule): Unique => OwnerUniqueRule::scopeToOwner($rule, Doc::class));
+```
+
+The model must expose `::ownerScopeConfig()` (provided by `HasOwner`). When owner scoping is disabled for the model the rule is returned unchanged; with no resolved owner it constrains to global-only rows.
 
 ## Exception Classes
 

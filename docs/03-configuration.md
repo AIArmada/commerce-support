@@ -68,13 +68,15 @@ return [
 
 #### `morph_key_type`
 
-Controls the Schema default morph key type for polymorphic relationships. It applies to owner morphs declared with `nullableMorphs('owner')`; non-owner holder morphs with explicit string or uuid columns (seating hosts and holders, pass registrations) are intentionally independent of this setting so they keep accepting both integer-like and uuid keys whatever the owner key shape is.
+Controls the Schema default morph key type for polymorphic relationships. It applies only to owner morphs declared with the guideline-literal `nullableMorphs('owner')`; migrations that declare an explicit `nullableUuidMorphs('owner')` ignore this setting, as do non-owner holder morphs with explicit string or uuid columns (seating hosts and holders, pass registrations), which stay independent so they keep accepting both integer-like and uuid keys whatever the owner key shape is.
 
 | Value | Description |
 |-------|-------------|
 | `uuid` | UUIDs (default, recommended) |
 | `ulid` | ULIDs |
-| `int` | Auto-incrementing integers |
+| `int` | Auto-incrementing integers (unsupported — see below) |
+
+> **Warning**: `morph_key_type=int` is effectively unsupported. Only some owner migrations use `nullableMorphs('owner')`; the rest pin `nullableUuidMorphs('owner')`, so `int` produces a mixed schema (bigint owner columns next to uuid ones) and uuid-keyed owners become unwritable on strict drivers. Use uuid (or ulid) owner keys. Apps that must keep integer owners should plan a migration to uuid keys instead of setting `int`.
 
 ```php
 'database' => [

@@ -356,8 +356,9 @@ protected function performCheck(): Result
 # Check migrations table
 php artisan migrate:status
 
-# Reset specific migration
-php artisan migrate:rollback --step=1
+# Package migrations ship without down() methods; development databases
+# are delete-and-rerun
+php artisan migrate:fresh
 ```
 
 ### Wrong JSON Column Type
