@@ -171,6 +171,11 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     private function loadDependencyMigrations(): void
     {
+        // Registration must not consult live tables: providers boot before
+        // migrate:fresh, migrate:refresh and migrate:reset drop anything, so a
+        // table-exists check would wrongly skip registration. Run-time safety
+        // lives in the migrations themselves (idempotent up methods).
+
         $settingsMigrationPath = __DIR__ . '/../database/migrations/1970_01_01_000000_create_settings_table.php';
 
         $publishedSettingsMigrations = glob(database_path('migrations/*_create_settings_table.php'));
@@ -187,7 +192,7 @@ final class SupportServiceProvider extends PackageServiceProvider
                 'vendor/owen-it/laravel-auditing/database/migrations/audits.stub'
             );
 
-        if ($auditsMigrationPath !== null && ! $this->auditTableExists()) {
+        if ($auditsMigrationPath !== null) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
                 $auditsMigrationPath,
@@ -211,7 +216,7 @@ final class SupportServiceProvider extends PackageServiceProvider
             'vendor/spatie/laravel-activitylog/database/migrations'
         );
 
-        if ($activityLogMigrationsPath !== null && ! $this->tableExists('activity_log')) {
+        if ($activityLogMigrationsPath !== null) {
             ConditionalMigrationLoader::loadDirectoryIfMissing(
                 $this,
                 $activityLogMigrationsPath
@@ -220,7 +225,7 @@ final class SupportServiceProvider extends PackageServiceProvider
 
         $tagsMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000001_create_tag_tables.php.stub';
 
-        if (is_file($tagsMigrationPath) && ! $this->tagTablesExist()) {
+        if (is_file($tagsMigrationPath)) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
                 $tagsMigrationPath,
@@ -234,7 +239,7 @@ final class SupportServiceProvider extends PackageServiceProvider
             'vendor/spatie/laravel-medialibrary/database/migrations/create_media_table.php.stub'
         );
 
-        if ($mediaMigrationPath !== null && ! $this->tableExists('media')) {
+        if ($mediaMigrationPath !== null) {
             ConditionalMigrationLoader::loadFileIfMissing(
                 $this,
                 $mediaMigrationPath
@@ -257,10 +262,6 @@ final class SupportServiceProvider extends PackageServiceProvider
     private function shouldLoadWebhookCallsMigration(): bool
     {
         if (! class_exists(WebhookClientServiceProvider::class)) {
-            return false;
-        }
-
-        if ($this->tableExists('webhook_calls')) {
             return false;
         }
 
@@ -321,31 +322,6 @@ final class SupportServiceProvider extends PackageServiceProvider
         $path = dirname(__DIR__) . '/database/migrations/1970_01_01_000002_create_audits_table.php.stub';
 
         return is_file($path) ? $path : null;
-    }
-
-    private function auditTableExists(): bool
-    {
-        $connection = config('audit.drivers.database.connection') ?: config('database.default');
-        $table = config('audit.drivers.database.table') ?: 'audits';
-
-        return $this->tableExists((string) $table, is_string($connection) && $connection !== '' ? $connection : null);
-    }
-
-    private function tagTablesExist(): bool
-    {
-        $tags = (string) config('commerce-support.database.tables.tags', 'tags');
-        $taggables = (string) config('commerce-support.database.tables.taggables', 'taggables');
-
-        return $this->tableExists($tags) && $this->tableExists($taggables);
-    }
-
-    private function tableExists(string $table, ?string $connection = null): bool
-    {
-        if ($connection === null || $connection === '') {
-            return Schema::hasTable($table);
-        }
-
-        return Schema::connection($connection)->hasTable($table);
     }
 
     private function validateMorphKeyType(): void
