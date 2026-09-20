@@ -31,6 +31,13 @@ return [
     */
     'currency' => [
         'default' => env('COMMERCE_DEFAULT_CURRENCY', 'MYR'),
+        'exchange_rates' => [
+            'base' => env('COMMERCE_EXCHANGE_RATE_BASE', 'USD'),
+            'rates' => [
+                // Units per one base unit: 1 USD = 4.70 MYR.
+                // 'MYR' => 4.7,
+            ],
+        ],
     ],
 
     /*
@@ -109,6 +116,24 @@ This is not a replacement for package-level owner flags such as `cart.owner.enab
 Optional morph type used by team-aware integrations when the owner is represented by a dedicated team model. Leave it `null` unless the application needs an explicit team morph class.
 
 **Default:** `null`
+
+### Currency Settings
+
+#### `exchange_rates`
+
+Static exchange rates for reporting-only conversion. Rates are units per one base unit, so with base `USD`, `['MYR' => 4.7]` prices one USD at 4.70 MYR. The base implies `1.0` when unlisted; unknown, zero, and negative rates resolve to null so callers fail soft.
+
+```php
+'currency' => [
+    'default' => 'MYR',
+    'exchange_rates' => [
+        'base' => 'USD',
+        'rates' => ['MYR' => 4.7, 'EUR' => 0.92],
+    ],
+],
+```
+
+To feed rates from a database table or a live provider, bind your own `AIArmada\CommerceSupport\Contracts\ExchangeRateProvider` singleton — `CurrencyConverter` resolves it from the container.
 
 ### Targeting Settings
 
@@ -259,6 +284,7 @@ Supported item keys are `visible`, `hidden`, `group`, `parent_item`, and `sort`.
 | `COMMERCE_SUPPORT_TABLE_CURRENCIES` | `currencies` | Shared currency reference table |
 | `COMMERCE_SUPPORT_TABLE_TIMEZONES` | `timezones` | Shared timezone reference table |
 | `COMMERCE_DEFAULT_CURRENCY` | `MYR` | Default currency code used by `MoneyNormalizer::format()`, `FormatsMoney`, and `currency_symbol()` |
+| `COMMERCE_EXCHANGE_RATE_BASE` | `USD` | Reporting base currency for static exchange rates |
 | `COMMERCE_OWNER_ENABLED` | `false` | Fail closed unless a concrete owner resolver is configured |
 | `COMMERCE_OWNER_RESOLVER` | `NullOwnerResolver::class` | Owner resolver class |
 

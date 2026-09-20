@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport;
 
+use AIArmada\CommerceSupport\Contracts\ExchangeRateProvider;
 use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
 use AIArmada\CommerceSupport\Contracts\PublicDnsResolver;
 use AIArmada\CommerceSupport\Http\PinnedHttpClient;
 use AIArmada\CommerceSupport\Support\AuditableModelRegistry;
 use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
+use AIArmada\CommerceSupport\Support\ConfigExchangeRateProvider;
+use AIArmada\CommerceSupport\Support\CurrencyConverter;
 use AIArmada\CommerceSupport\Support\LoggableModelRegistry;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
 use AIArmada\CommerceSupport\Support\OwnerContext;
@@ -80,6 +83,7 @@ final class SupportServiceProvider extends PackageServiceProvider
     public function packageRegistered(): void
     {
         $this->registerOwnerResolver();
+        $this->registerExchangeRates();
         $this->registerPaymentSubjectResolver();
         $this->registerTargetingEngine();
         $this->registerPinnedHttpTransport();
@@ -410,6 +414,12 @@ final class SupportServiceProvider extends PackageServiceProvider
 
             return $resolver;
         });
+    }
+
+    private function registerExchangeRates(): void
+    {
+        $this->app->singleton(ExchangeRateProvider::class, ConfigExchangeRateProvider::class);
+        $this->app->singleton(CurrencyConverter::class);
     }
 
     private function registerTargetingEngine(): void

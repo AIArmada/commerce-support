@@ -50,6 +50,24 @@ $summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), f
 
 `MoneyNormalizer::format()` now defaults to `MYR` when you omit the currency code. Pass an explicit code whenever a downstream package or UI contract needs a different currency.
 
+## 6. Convert currencies for display only
+
+`CurrencyConverter` folds per-currency minor-unit amounts into reporting totals. Converted totals are approximations for display and aggregation — never feed them into balances, payouts, or any other money movement.
+
+```php
+use AIArmada\CommerceSupport\Support\CurrencyConverter;
+
+$converter = app(CurrencyConverter::class);
+
+$converter->convertMinor(47000, 'MYR', 'USD'); // 10000 with MYR => 4.7
+$converter->totalMinor(['USD' => 10000, 'MYR' => 47000], 'USD'); // 20000
+
+// null when any leg lacks a rate: render the per-currency breakdown instead.
+$converter->totalMinor(['USD' => 10000, 'THB' => 5000], 'USD'); // null
+```
+
+Totals refuse partial conversion: when any leg lacks a rate the whole total is null, so callers show a per-currency breakdown instead of a misleading number.
+
 ## 4. Standardize Filament package navigation
 
 When an application installs many Commerce Filament packages, register the shared navigation plugin once on the panel:

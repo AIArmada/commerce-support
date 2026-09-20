@@ -33,6 +33,10 @@ return [
     */
     'currency' => [
         'default' => env('COMMERCE_DEFAULT_CURRENCY', 'MYR'),
+        'exchange_rates' => [
+            'base' => env('COMMERCE_EXCHANGE_RATE_BASE', 'USD'),
+            'rates' => [],
+        ],
     ],
 
     /*
