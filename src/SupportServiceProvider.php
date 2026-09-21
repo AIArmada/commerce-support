@@ -11,7 +11,6 @@ use AIArmada\CommerceSupport\Contracts\PublicDnsResolver;
 use AIArmada\CommerceSupport\Http\PinnedHttpClient;
 use AIArmada\CommerceSupport\Support\AuditableModelRegistry;
 use AIArmada\CommerceSupport\Support\ConditionalMigrationLoader;
-use AIArmada\CommerceSupport\Support\ConfigExchangeRateProvider;
 use AIArmada\CommerceSupport\Support\CurrencyConverter;
 use AIArmada\CommerceSupport\Support\LoggableModelRegistry;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
@@ -21,6 +20,7 @@ use AIArmada\CommerceSupport\Support\Payment\ActorPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\GuestPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\PaymentSubjectResolver;
 use AIArmada\CommerceSupport\Support\PublicHttpUrlGuard;
+use AIArmada\CommerceSupport\Support\SettingsExchangeRateProvider;
 use AIArmada\CommerceSupport\Support\SystemPublicDnsResolver;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingEngine;
@@ -418,8 +418,27 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     private function registerExchangeRates(): void
     {
-        $this->app->singleton(ExchangeRateProvider::class, ConfigExchangeRateProvider::class);
+        $this->app->singleton(ExchangeRateProvider::class, SettingsExchangeRateProvider::class);
         $this->app->singleton(CurrencyConverter::class);
+
+        $this->registerSettingsMigrationPath();
+    }
+
+    private function registerSettingsMigrationPath(): void
+    {
+        $packagePath = __DIR__ . '/../database/settings';
+
+        if (! is_dir($packagePath)) {
+            return;
+        }
+
+        $paths = config('settings.migrations_paths', []);
+
+        if (! in_array($packagePath, $paths, true)) {
+            $paths[] = $packagePath;
+
+            config(['settings.migrations_paths' => $paths]);
+        }
     }
 
     private function registerTargetingEngine(): void

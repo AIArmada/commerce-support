@@ -36,6 +36,7 @@ return [
         'exchange_rates' => [
             'base' => env('COMMERCE_EXCHANGE_RATE_BASE', 'USD'),
             'rates' => [],
+            'history' => [],
         ],
     ],
 

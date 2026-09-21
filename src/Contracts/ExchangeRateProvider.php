@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Contracts;
 
+use DateTimeInterface;
+
 /**
  * Exchange rates for reporting-only currency conversion.
  *
@@ -20,6 +22,9 @@ interface ExchangeRateProvider
 
     /**
      * Units of $to per one unit of $from, or null when no rate is known.
+     *
+     * When $asOf is given, implementations must return the rate effective
+     * at that moment so historical reports never shift with current rates.
      */
-    public function rate(string $from, string $to): ?float;
+    public function rate(string $from, string $to, ?DateTimeInterface $asOf = null): ?float;
 }

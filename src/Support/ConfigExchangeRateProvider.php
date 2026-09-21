@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Support;
 
 use AIArmada\CommerceSupport\Contracts\ExchangeRateProvider;
+use DateTimeInterface;
 
 /**
  * Static exchange rates from `commerce-support.currency.exchange_rates`.
@@ -21,39 +22,14 @@ final class ConfigExchangeRateProvider implements ExchangeRateProvider
         return mb_strtoupper((string) config('commerce-support.currency.exchange_rates.base', 'USD'));
     }
 
-    public function rate(string $from, string $to): ?float
+    public function rate(string $from, string $to, ?DateTimeInterface $asOf = null): ?float
     {
-        $from = mb_strtoupper($from);
-        $to = mb_strtoupper($to);
-
-        if ($from === $to) {
-            return 1.0;
-        }
-
         /** @var array<string, mixed> $rates */
         $rates = config('commerce-support.currency.exchange_rates.rates', []);
 
-        $fromRate = $this->unitsPerBase($rates, $from);
-        $toRate = $this->unitsPerBase($rates, $to);
+        /** @var array<string, mixed> $history */
+        $history = config('commerce-support.currency.exchange_rates.history', []);
 
-        if ($fromRate === null || $toRate === null) {
-            return null;
-        }
-
-        return $toRate / $fromRate;
-    }
-
-    /**
-     * @param  array<string, mixed>  $rates
-     */
-    private function unitsPerBase(array $rates, string $code): ?float
-    {
-        foreach ($rates as $key => $value) {
-            if (mb_strtoupper((string) $key) === $code && is_numeric($value) && (float) $value > 0) {
-                return (float) $value;
-            }
-        }
-
-        return $code === $this->baseCurrency() ? 1.0 : null;
+        return ExchangeRateResolver::rate($this->baseCurrency(), $rates, $history, $from, $to, $asOf);
     }
 }

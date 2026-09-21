@@ -37,6 +37,10 @@ return [
                 // Units per one base unit: 1 USD = 4.70 MYR.
                 // 'MYR' => 4.7,
             ],
+            'history' => [
+                // Dated snapshots for historical reporting, keyed by Y-m-d.
+                // '2026-01-01' => ['MYR' => 4.2],
+            ],
         ],
     ],
 
@@ -129,11 +133,16 @@ Static exchange rates for reporting-only conversion. Rates are units per one bas
     'exchange_rates' => [
         'base' => 'USD',
         'rates' => ['MYR' => 4.7, 'EUR' => 0.92],
+        'history' => ['2026-01-01' => ['MYR' => 4.2]],
     ],
 ],
 ```
 
-To feed rates from a database table or a live provider, bind your own `AIArmada\CommerceSupport\Contracts\ExchangeRateProvider` singleton — `CurrencyConverter` resolves it from the container.
+Pass `$asOf` to `rate()`, `convertMinor()`, or `totalMinor()` to convert with the rates effective at that moment: every history snapshot on or before the date overlays the current table, oldest first, so partial snapshots compose. Reports pass the period end automatically, and conversions stamp the effective rate at record time so history never shifts when current rates move.
+
+To feed rates from a database table or a live provider, bind your own `AIArmada\CommerceSupport\Contracts\ExchangeRateProvider` singleton — `CurrencyConverter` resolves it from the container. Custom providers must honor `$asOf` the same way.
+
+The default provider reads the `commerce-exchange-rates` settings group first and falls back to this config when settings are unmigrated, so config-driven deployments keep working unchanged. Manage settings at runtime through the filament-commerce-support Exchange Rates page: edit the base and current rates, and snapshot them to append a dated history entry for historical reporting.
 
 ### Targeting Settings
 
