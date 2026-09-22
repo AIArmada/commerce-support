@@ -423,3 +423,26 @@ $cart->getTotal(); // Recalculated
 3. **Use Tinker:** `php artisan tinker`
 4. **Search docs:** Use `search-docs` tool for specific issues
 5. **Check tests:** Look at test files for usage examples
+
+## Outbound HTTP Issues
+
+### Testing Against Local (.test) Hosts
+
+**Symptoms:** `PublicHttpUrlGuard` rejects local development URLs with
+"must resolve exclusively to public IP addresses".
+
+**Cause:** By design — the guard only permits public DNS/IPs to prevent
+SSRF.
+
+**Solution:** For local/test environments only, opt specific hosts out of
+the public-IP precondition (every other check still applies):
+
+```php
+use AIArmada\CommerceSupport\Support\PublicHttpUrlGuard;
+
+if (app()->environment('local')) {
+    PublicHttpUrlGuard::allowHostsForTesting(['.test']);
+}
+```
+
+Never call this from production code paths.

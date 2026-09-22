@@ -40,6 +40,12 @@ final class PinnedHttpClient
                 throw new RuntimeException('The cURL extension with CURLOPT_RESOLVE is required for pinned HTTP transport.');
             }
 
+            // Guzzle request options that swap the handler (e.g. stream)
+            // would silently drop CURLOPT_RESOLVE, so refuse them loudly.
+            if (array_key_exists('stream', $options) || array_key_exists('handler', $options)) {
+                throw new RuntimeException('Pinned HTTP transport cannot combine DNS pinning with custom handler options (stream/handler).');
+            }
+
             self::assertCurlTransport($pending);
 
             $pending->withOptions(['curl' => [constant('CURLOPT_RESOLVE') => [$resolveEntry]]]);

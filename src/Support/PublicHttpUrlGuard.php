@@ -11,7 +11,38 @@ use Throwable;
 
 final class PublicHttpUrlGuard
 {
+    /**
+     * Hosts exempted from the public-IP precondition via allowHostsForTesting().
+     *
+     * @var list<string>|null
+     */
+    private static ?array $testAllowedHosts = null;
+
     private readonly PublicDnsResolver $dnsResolver;
+
+    /**
+     * Exempt hosts from the public-IP precondition for local/test use.
+     *
+     * Entries may be exact hostnames ('merchant.test') or suffixes
+     * ('.test'). Matching hosts resolve via local DNS and skip the
+     * public-IP check; every other validation (scheme, port, credentials,
+     * fragments) still applies. Call only from local/test bootstrap —
+     * never in production code paths.
+     *
+     * @param  list<string>  $hosts
+     */
+    public static function allowHostsForTesting(array $hosts): void
+    {
+        self::$testAllowedHosts = array_values(array_unique(array_map(
+            static fn (string $host): string => mb_strtolower(mb_trim($host)),
+            $hosts
+        )));
+    }
+
+    public static function clearTestAllowedHosts(): void
+    {
+        self::$testAllowedHosts = null;
+    }
 
     /**
      * @param  PublicDnsResolver|callable(string): list<string>|null  $dnsResolver
@@ -95,6 +126,10 @@ final class PublicHttpUrlGuard
             throw new InvalidArgumentException('Outbound URL host must be a public fully-qualified host.');
         }
 
+        if (self::isTestAllowedHost($host)) {
+            return $this->validateTestHost($scheme, $host, $port, (string) ($parts['path'] ?? ''), isset($parts['query']) ? '?' . $parts['query'] : '');
+        }
+
         $isIpLiteral = filter_var($host, FILTER_VALIDATE_IP) !== false;
 
         if ($isIpLiteral) {
@@ -150,6 +185,69 @@ final class PublicHttpUrlGuard
             || str_ends_with($host, '.localhost')
             || str_ends_with($host, '.local')
             || str_ends_with($host, '.internal');
+    }
+
+    private static function isTestAllowedHost(string $host): bool
+    {
+        if (self::$testAllowedHosts === null) {
+            return false;
+        }
+
+        foreach (self::$testAllowedHosts as $entry) {
+            if ($entry === '') {
+                continue;
+            }
+
+            if ($host === $entry || ($entry[0] === '.' && str_ends_with($host, $entry))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function validateTestHost(string $scheme, string $host, int $port, string $path, string $query): ValidatedHttpTarget
+    {
+        try {
+            $addresses = $this->dnsResolver->resolve($host);
+        } catch (Throwable $exception) {
+            throw new InvalidArgumentException('Test-allowed host could not be resolved safely.', previous: $exception);
+        }
+
+        $ip = null;
+
+        foreach ($addresses as $address) {
+            if (is_string($address) && filter_var($address, FILTER_VALIDATE_IP) !== false) {
+                $ip = $address;
+
+                break;
+            }
+        }
+
+        if ($ip === null) {
+            // Fall back to local resolution for environments (Herd, dnsmasq)
+            // where the system resolver knows the host but the package
+            // resolver does not.
+            $local = gethostbyname($host);
+
+            if ($local !== $host && filter_var($local, FILTER_VALIDATE_IP) !== false) {
+                $ip = $local;
+            }
+        }
+
+        if ($ip === null) {
+            throw new InvalidArgumentException('Test-allowed host did not resolve to an IP address.');
+        }
+
+        return new ValidatedHttpTarget(
+            url: sprintf('%s://%s%s%s', $scheme, $host, $path, $query),
+            scheme: $scheme,
+            host: $host,
+            port: $port,
+            addresses: [$ip],
+            selectedIp: $ip,
+            isIpLiteral: false,
+        );
     }
 
     private function isPublicIp(string $ip): bool
