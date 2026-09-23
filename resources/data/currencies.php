@@ -564,16 +564,6 @@ return [
         'thousands_separator' => '.',
     ],
     [
-        'code' => 'ILS',
-        'name' => 'Israeli New Shekel',
-        'symbol' => '₪',
-        'symbol_native' => '₪',
-        'precision' => 2,
-        'symbol_first' => false,
-        'decimal_mark' => '.',
-        'thousands_separator' => ',',
-    ],
-    [
         'code' => 'INR',
         'name' => 'Indian Rupee',
         'symbol' => '₹',
