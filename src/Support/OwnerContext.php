@@ -140,20 +140,28 @@ final class OwnerContext
         self::writeState(['hasOverride' => true, 'override' => $owner]);
 
         if ($owner !== null) {
-            event(new MadeOwnerCurrentEvent($owner));
+            try {
+                event(new MadeOwnerCurrentEvent($owner));
+            } catch (Throwable $e) {
+                self::writeState($previous);
+
+                throw $e;
+            }
         }
 
         try {
             return $callback();
         } finally {
             if ($owner !== null) {
-                event(new ForgettingCurrentOwnerEvent($owner));
-            }
+                try {
+                    event(new ForgettingCurrentOwnerEvent($owner));
+                } finally {
+                    self::writeState($previous);
+                }
 
-            self::writeState($previous);
-
-            if ($owner !== null) {
                 event(new ForgotCurrentOwnerEvent($owner));
+            } else {
+                self::writeState($previous);
             }
         }
     }
