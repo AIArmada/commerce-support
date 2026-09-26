@@ -6,7 +6,7 @@ title: Configuration
 
 ## Configuration File
 
-After publishing, `config/commerce-support.php` contains:
+The published `config/commerce-support.php` has these top-level keys, in this order:
 
 ```php
 <?php
@@ -22,6 +22,17 @@ return [
     'database' => [
         // Morph key type: 'uuid', 'ulid', or 'int'
         'morph_key_type' => env('COMMERCE_MORPH_KEY_TYPE', 'uuid'),
+        'json_column_type' => env('COMMERCE_SUPPORT_JSON_COLUMN_TYPE', 'jsonb'),
+        'tables' => [
+            'saved_searches' => env('COMMERCE_SUPPORT_TABLE_SAVED_SEARCHES', 'saved_searches'),
+            'reports' => env('COMMERCE_SUPPORT_TABLE_REPORTS', 'reports'),
+            'notification_preferences' => env('COMMERCE_SUPPORT_TABLE_NOTIFICATION_PREFERENCES', 'notification_preferences'),
+            'languages' => env('COMMERCE_SUPPORT_TABLE_LANGUAGES', 'languages'),
+            'currencies' => env('COMMERCE_SUPPORT_TABLE_CURRENCIES', 'currencies'),
+            'timezones' => env('COMMERCE_SUPPORT_TABLE_TIMEZONES', 'timezones'),
+            'tags' => env('COMMERCE_SUPPORT_TABLE_TAGS', 'tags'),
+            'taggables' => env('COMMERCE_SUPPORT_TABLE_TAGGABLES', 'taggables'),
+        ],
     ],
 
     /*
@@ -55,6 +66,17 @@ return [
 
         // Class implementing OwnerResolverInterface
         'resolver' => env('COMMERCE_OWNER_RESOLVER', NullOwnerResolver::class),
+
+        // Optional morph type for team-aware integrations
+        'team_type' => env('COMMERCE_OWNER_TEAM_TYPE'),
+    ],
+
+    'targeting' => [
+        'trust_proxy_headers' => env('COMMERCE_TARGETING_TRUST_PROXY_HEADERS', false),
+    ],
+
+    'filesystem' => [
+        'disk' => env('COMMERCE_FILESYSTEM_DISK'),
     ],
 
     'health' => [
@@ -65,6 +87,7 @@ return [
     'filament' => [
         'navigation' => [
             'enabled' => true,
+            'top_bar' => false,
             'groups' => [],
             'packages' => [],
             'items' => [],
@@ -95,6 +118,44 @@ Controls the Schema default morph key type for polymorphic relationships. It app
 ],
 ```
 
+#### `json_column_type`
+
+JSON column type used by this package's own migrations. Leave it as the default
+unless your driver cannot handle the value.
+
+**Default:** `jsonb`
+
+```php
+'database' => [
+    'json_column_type' => 'json',
+],
+```
+
+`commerce_json_column_type()` resolves the column type in this order, and falls
+back to this key when neither env var is set:
+
+1. `{PACKAGE}_JSON_COLUMN_TYPE` (for example `DOCS_JSON_COLUMN_TYPE`)
+2. `COMMERCE_JSON_COLUMN_TYPE`
+3. `config('{package}.database.json_column_type')`
+
+#### `tables`
+
+Physical table names for the shared reference tables. Every model reads its own
+name from this map (`getTable()`), so remapping here also remaps the matching
+migrations.
+
+**Default:** `saved_searches`, `reports`, `notification_preferences`,
+`languages`, `currencies`, `timezones`, `tags`, `taggables`
+
+```php
+'database' => [
+    'tables' => [
+        'currencies' => 'currencies',
+        'languages' => 'languages',
+    ],
+],
+```
+
 ### Owner Settings
 
 #### `enabled`
@@ -120,6 +181,18 @@ This is not a replacement for package-level owner flags such as `cart.owner.enab
 Optional morph type used by team-aware integrations when the owner is represented by a dedicated team model. Leave it `null` unless the application needs an explicit team morph class.
 
 **Default:** `null`
+
+#### `resolver`
+
+The class responsible for resolving the current tenant/owner context.
+
+**Default:** `NullOwnerResolver::class` (single-tenant/no-owner mode)
+
+```php
+'owner' => [
+    'resolver' => App\Support\TenantOwnerResolver::class,
+],
+```
 
 ### Currency Settings
 
@@ -181,18 +254,6 @@ on a public default disk.
 ],
 ```
 
-#### `resolver`
-
-The class responsible for resolving the current tenant/owner context.
-
-**Default:** `NullOwnerResolver::class` (single-tenant/no-owner mode)
-
-```php
-'owner' => [
-    'resolver' => App\Support\TenantOwnerResolver::class,
-],
-```
-
 ### Health Settings
 
 #### `view_ability`
@@ -220,6 +281,13 @@ Gate::define('viewCommerceHealth', fn (User $user): bool => $user->isAdmin());
 Enables the central Commerce navigation builder when `CommerceNavigationPlugin` is registered on a panel.
 
 **Default:** `true`
+
+#### `top_bar`
+
+Renders the Commerce navigation entries in the Filament top bar instead of the
+sidebar.
+
+**Default:** `false`
 
 #### `groups`
 
@@ -296,6 +364,14 @@ Supported item keys are `visible`, `hidden`, `group`, `parent_item`, and `sort`.
 | `COMMERCE_EXCHANGE_RATE_BASE` | `USD` | Reporting base currency for static exchange rates |
 | `COMMERCE_OWNER_ENABLED` | `false` | Fail closed unless a concrete owner resolver is configured |
 | `COMMERCE_OWNER_RESOLVER` | `NullOwnerResolver::class` | Owner resolver class |
+| `COMMERCE_OWNER_TEAM_TYPE` | `null` | Optional owner team morph class |
+| `COMMERCE_TARGETING_TRUST_PROXY_HEADERS` | `false` | Allow proxy/CDN headers to steer targeting resolution |
+| `COMMERCE_FILESYSTEM_DISK` | `null` | Disk used by `OwnerFilesystem` |
+| `COMMERCE_SUPPORT_TABLE_SAVED_SEARCHES` | `saved_searches` | Shared saved-search table |
+| `COMMERCE_SUPPORT_TABLE_REPORTS` | `reports` | Shared report table |
+| `COMMERCE_SUPPORT_TABLE_NOTIFICATION_PREFERENCES` | `notification_preferences` | Shared notification-preference table |
+| `COMMERCE_SUPPORT_TABLE_TAGS` | `tags` | Shared tag table |
+| `COMMERCE_SUPPORT_TABLE_TAGGABLES` | `taggables` | Shared taggable pivot table |
 
 ## JSON Column Type Helper
 

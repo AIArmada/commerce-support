@@ -4,7 +4,7 @@ title: Targeting Engine
 
 # Targeting Engine
 
-The Targeting Engine provides a powerful rule-based system for evaluating whether entities (promotions, vouchers, shipping methods, etc.) are applicable to a given context. It supports 22 built-in rule types, three evaluation modes, and custom boolean expressions.
+The Targeting Engine provides a powerful rule-based system for evaluating whether entities (promotions, vouchers, shipping methods, etc.) are applicable to a given context. It supports 23 built-in rule types, three evaluation modes, and custom boolean expressions.
 
 ## Overview
 
@@ -16,25 +16,36 @@ The Targeting Engine provides a powerful rule-based system for evaluating whethe
 │   TargetingContext ────► TargetingEngine ────► bool             │
 │        │                       │                                │
 │        ▼                       ▼                                │
-│   - Cart value            22 Evaluators                         │
+│   - Cart value            23 Evaluators                         │
 │   - User segments         - CartValueEvaluator                  │
 │   - Channel/Device        - UserSegmentEvaluator                │
 │   - Geographic data       - ProductQuantityEvaluator            │
 │   - Date/Time             - PaymentMethodEvaluator              │
 │   - Products/Categories   - CouponUsageLimitEvaluator           │
 │   - Payment methods       - ReferralSourceEvaluator             │
-│   - UTM/Attribution       - ... and 16 more                     │
+│   - UTM/Attribution       - ... and 17 more                     │
 │                                                                 │
 └────────────────────────────────────────────────────────────────┘
 ```
 
+Every value in `TargetingRuleType` has a matching evaluator in
+`src/Targeting/Evaluators`, registered by `TargetingEngine::registerDefaultEvaluators()`:
+`user_segment`, `user_attribute`, `first_purchase`, `clv`, `cart_value`,
+`cart_quantity`, `product_in_cart`, `product_quantity`, `category_in_cart`,
+`metadata`, `item_attribute`, `item_constraint`, `coupon_usage_limit`,
+`payment_method`, `time_window`, `day_of_week`, `date_range`, `channel`,
+`device`, `geographic`, `referrer`, `referral_source`, `currency`.
+
+Use `TargetingRuleType::options()` / `grouped()` for the canonical label sets and
+`getOperators()` for the operator vocabulary of a given rule type.
+
 ## Quick Start
 
 ```php
-use AIArmada\CommerceSupport\Targeting\TargetingEngine;
+use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingContext;
 
-$engine = app(TargetingEngine::class);
+$engine = app(TargetingEngineInterface::class);
 
 // Create context from cart
 $context = TargetingContext::fromCart($cart);
@@ -62,7 +73,8 @@ For non-custom modes (`all` / `any`), `rules` must be present and non-empty. Pay
 All rules must pass:
 
 ```php
-$eligible = $engine->evaluateAll($rules, $context);
+// Convenience helpers on the concrete TargetingEngine
+$eligible = app(\AIArmada\CommerceSupport\Targeting\TargetingEngine::class)->evaluateAll($rules, $context);
 // OR
 $eligible = $engine->evaluate([
     'mode' => 'all',
@@ -75,7 +87,7 @@ $eligible = $engine->evaluate([
 At least one rule must pass:
 
 ```php
-$eligible = $engine->evaluateAny($rules, $context);
+$eligible = app(\AIArmada\CommerceSupport\Targeting\TargetingEngine::class)->evaluateAny($rules, $context);
 // OR
 $eligible = $engine->evaluate([
     'mode' => 'any',
@@ -141,21 +153,33 @@ $context = new TargetingContext(
 
 ### Available Context Data
 
-| Property | Type | Description |
+These are read through `TargetingContextInterface` accessors, not public properties.
+
+| Accessor | Type | Description |
 |----------|------|-------------|
-| `cartValue` | `int` | Cart total in cents |
-| `cartQuantity` | `int` | Total item quantity |
-| `productIdentifiers` | `array<string>` | SKUs, IDs, slugs |
-| `productCategories` | `array<string>` | Category slugs |
-| `user` | `?Model` | Authenticated user |
-| `userSegments` | `array<string>` | User segment tags |
-| `channel` | `?string` | `web`, `mobile`, `api`, `pos` |
-| `device` | `?string` | `desktop`, `mobile`, `tablet` |
-| `country` | `?string` | ISO country code |
-| `region` | `?string` | State/province |
-| `city` | `?string` | City name |
-| `metadata` | `array` | Custom key-values |
-| `currentTime` | `Carbon` | Evaluation timestamp |
+| `getCartValue()` | `int` | Cart subtotal in integer minor units |
+| `getCartQuantity()` | `int` | Total item quantity |
+| `getProductIdentifiers()` | `array<string>` | SKUs, IDs, slugs |
+| `getProductCategories()` | `array<string>` | Category slugs |
+| `getUser()` | `?Model` | Authenticated user |
+| `getUserSegments()` | `array<string>` | User segment tags |
+| `getChannel()` | `string` | `web`, `mobile`, `api`, `pos` |
+| `getDevice()` | `string` | `desktop`, `mobile`, `tablet` |
+| `getCountry()` | `?string` | ISO 3166-1 alpha-2 country code |
+| `getReferrer()` | `?string` | Referrer URL or source |
+| `getTimezone()` | `string` | IANA timezone used by time rules |
+| `getCurrentTime()` | `CarbonImmutable` | Evaluation timestamp |
+| `getMetadata()` | `mixed` | Custom key-values passed to the constructor |
+| `getCartMetadata()` | `mixed` | Metadata read from the **cart model** (not the `metadata` array) |
+
+`TargetingContext` additionally exposes `getRegion()`, `getCity()`,
+`getUtmSource()`, `getUtmMedium()`, `getUtmCampaign()`, `getCurrency()`,
+`getProductQuantity()`, `getCouponCode()`, and `getPaymentMethod()`; these are
+concrete-class methods rather than contract methods.
+
+Money-valued rules (`cart_value`, `clv`, and `LineItemInterface` prices) are
+integer minor units and must be paired with an ISO 4217 currency code. `currency`
+is the rule type that matches that code.
 
 ### Trusted Input Sources
 
@@ -190,8 +214,8 @@ to `false`.
 #### cart_value
 ```php
 ['type' => 'cart_value', 'operator' => '>=', 'value' => 5000]
-// Operators: =, !=, >, >=, <, <=, between
-// value in cents
+// Operators: =, !=, >, >=, <, <=, between (use min/max instead of value)
+// value in integer minor units
 ```
 
 #### cart_quantity
@@ -277,7 +301,7 @@ to `false`.
 #### clv
 ```php
 ['type' => 'clv', 'operator' => '>=', 'value' => 100000]
-// value in cents
+// value in integer minor units
 ```
 
 ### Time Rules
@@ -307,9 +331,13 @@ to `false`.
 #### day_of_week
 ```php
 ['type' => 'day_of_week', 'days' => ['monday', 'tuesday', 'wednesday']]
-// or ['type' => 'day_of_week', 'days' => ['weekday']]
-// or ['type' => 'day_of_week', 'days' => ['weekend']]
+// or ['type' => 'day_of_week', 'values' => ['sat', 'sun']]
+// Accepts full names, three-letter abbreviations, or 0-6 integers
+// Operators: in (default), not_in
 ```
+
+> **warning**
+> There are no `weekday` / `weekend` group keywords. Unrecognized entries normalize away, so an all-unknown list never matches. Expand the days explicitly.
 
 ### Geographic Rules
 
@@ -318,10 +346,14 @@ to `false`.
 [
     'type' => 'geographic',
     'countries' => ['MY', 'SG', 'TH'],
-    'regions' => ['Selangor', 'KL'],  // optional
-    'exclude_countries' => ['US'],     // optional
+    'operator' => 'in',        // or 'not_in' (default 'in')
 ]
+// 'values' is accepted as an alias for 'countries'; comparison is case-insensitive
+// The rule returns false when no country can be resolved
 ```
+
+> **warning**
+> This evaluator is country-only. `regions` and `exclude_countries` are not read and are silently ignored. Use `not_in` for country exclusion.
 
 ### Channel Rules
 
@@ -341,12 +373,16 @@ to `false`.
 ```php
 [
     'type' => 'metadata',
-    'key' => 'referral_code',
-    'operator' => 'eq',
-    'value' => 'SAVE20'
+    'key' => 'campaign',
+    'operator' => '=',
+    'value' => 'summer'
 ]
 // Operators: exists, =, !=, contains, in, flag
+// 'in' additionally requires a 'values' array
 ```
+
+> **warning**
+> `metadata` reads the **cart model's** metadata (`hasCartMetadata()` / `getCartMetadata()`), not the `metadata` array passed to `TargetingContext`. Keys that only exist in the constructor `metadata` array are reported as absent. Use `referral_source` or a custom evaluator for constructor metadata.
 
 ## Creating Custom Evaluators
 
@@ -401,12 +437,16 @@ class LoyaltyPointsEvaluator implements TargetingRuleEvaluator
 
 ### Register the Evaluator
 
+`TargetingEngineInterface` is bound as a container singleton, so register against
+that binding. Resolving the concrete `TargetingEngine` class directly returns a
+fresh, unshared instance and the registration is lost.
+
 ```php
-// In a service provider
+use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
+
 public function boot(): void
 {
-    $engine = app(TargetingEngine::class);
-    $engine->registerEvaluator(new LoyaltyPointsEvaluator());
+    app(TargetingEngineInterface::class)->registerEvaluator(new LoyaltyPointsEvaluator());
 }
 ```
 
@@ -437,7 +477,7 @@ $targeting = [
 ];
 
 $errors = $engine->validate($targeting);
-// ['Rule 1 (invalid_type): Unknown rule type']
+// ['Rule 1: Unknown rule type: invalid_type']
 
 $eligible = $engine->evaluate($targeting, $context);
 // false: non-empty invalid targeting fails closed
@@ -452,7 +492,7 @@ class Promotion extends Model
 {
     public function isEligible(Cart $cart): bool
     {
-        $engine = app(TargetingEngine::class);
+        $engine = app(TargetingEngineInterface::class);
         $context = TargetingContext::fromCart($cart);
 
         return $engine->evaluate(
@@ -477,7 +517,7 @@ class ShippingMethod extends Model
             return true;
         }
 
-        $engine = app(TargetingEngine::class);
+        $engine = app(TargetingEngineInterface::class);
         $context = TargetingContext::fromCart($cart);
 
         return $engine->evaluate([

@@ -25,12 +25,15 @@ Commerce Support provides two complementary systems for tracking changes and act
 
 ### Setup
 
-Add the concern to models requiring audit trails:
+Add the concern to models requiring audit trails. The model must also implement
+`Auditable`: owen-it's `AuditableObserver` type-hints
+`OwenIt\Auditing\Contracts\Auditable`, so a model without it never gets audited.
 
 ```php
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
+use AIArmada\CommerceSupport\Contracts\Auditable;
 
-class Order extends Model
+class Order extends Model implements Auditable
 {
     use HasCommerceAudit;
 }
@@ -65,11 +68,13 @@ $order->update(['status' => 'paid']);
 ### Excluding Fields
 
 ```php
-class Order extends Model
+class Order extends Model implements Auditable
 {
     use HasCommerceAudit;
 
-    protected array $auditExclude = [
+    // HasCommerceAudit declares $auditExclude untyped, so redeclare it untyped too.
+    // Adding an `array` type here is a fatal error.
+    protected $auditExclude = [
         'remember_token',
         'internal_notes',
     ];
@@ -86,19 +91,20 @@ explicit allowlist via `getLoggableAttributes()`.
 ### Custom Audit Events
 
 ```php
-class Order extends Model
+class Order extends Model implements Auditable
 {
     use HasCommerceAudit;
 
-    protected array $auditEvents = [
+    // String keys are event-name patterns; the value is the attribute-getter
+    // method that supplies old_values/new_values for that event.
+    protected $auditEvents = [
         'created',
         'updated',
         'deleted',
-        'restored',
-        'refunded' => 'handleRefundedAudit',  // Custom
+        'refunded' => 'getRefundedAuditAttributes',
     ];
 
-    public function handleRefundedAudit(): array
+    protected function getRefundedAuditAttributes(): array
     {
         return [
             'old_values' => ['refunded' => false],
@@ -106,10 +112,13 @@ class Order extends Model
         ];
     }
 }
+```
 
-// Trigger custom event
-$order->auditEvent = 'refunded';
-$order->save();
+> **warning**
+> Assigning `$model->auditEvent` and calling `save()` does **not** record a custom audit. owen-it has no `saved` hook, and the `updated` observer overwrites `auditEvent`. Use `recordCustomAudit()` below instead.
+
+```php
+$order->recordCustomAudit('refunded', ['refunded' => false], ['refunded' => true]);
 ```
 
 ### Retrieving Audit History
@@ -207,21 +216,33 @@ activity()
 
 ### Commerce-specific Helpers
 
-The trait provides convenience methods:
+`LogsCommerceActivity` supplies defaults through four overridable methods:
+`getLoggableAttributes()`, `getActivityLogName()`, `getActivitylogOptions()`,
+and `getDescriptionForEvent()`. There is no per-model `logCommerceActivity()`
+method — log through the `activity()` helper:
 
 ```php
 class Order extends Model
 {
     use LogsCommerceActivity;
 
-    public function markAsPaid(PaymentIntent $intent): void
+    protected function getActivityLogName(): string
+    {
+        return 'commerce:orders';
+    }
+
+    public function markAsPaid(PaymentIntentInterface $intent): void
     {
         $this->update(['status' => 'paid']);
 
-        $this->logCommerceActivity('paid', [
-            'payment_id' => $intent->getId(),
-            'amount' => $intent->getAmount(),
-        ]);
+        activity($this->getActivityLogName())
+            ->performedOn($this)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'payment_id' => $intent->getPaymentId(),
+                'amount' => $intent->getAmount(),
+            ])
+            ->log('paid');
     }
 }
 ```
@@ -319,6 +340,13 @@ class Order extends Model
 }
 ```
 
+`HasCommerceAudit` supplies `getAuditInclude()`, `getAuditExclude()`,
+`getAuditThreshold()` (default `100` records per model), `transformAudit()`,
+`isAuditableAttribute()`, `restoreToAuditState()`, `recordCustomAudit()`, and
+`recordCustomAuditDifferences()`. `LogsCommerceActivity` supplies
+`getActivitylogOptions()`, `getDescriptionForEvent()`, `getLoggableAttributes()`,
+and `getActivityLogName()`.
+
 ### Log Meaningful Events
 
 ```php
@@ -353,11 +381,13 @@ activity('commerce:payments')
 ### Audit Sensitive Operations
 
 ```php
-class Refund extends Model
+class Refund extends Model implements Auditable
 {
     use HasCommerceAudit;
 
-    protected array $auditInclude = [
+    // Untyped: HasCommerceAudit declares $auditInclude untyped. Adding an
+    // `array` type here is a fatal error.
+    protected $auditInclude = [
         'order_id',
         'amount',
         'reason',
@@ -372,7 +402,7 @@ class Refund extends Model
 Complete order lifecycle tracking:
 
 ```php
-class Order extends Model
+class Order extends Model implements Auditable
 {
     use HasCommerceAudit;
     use LogsCommerceActivity;
@@ -392,18 +422,18 @@ class Order extends Model
             ->log('Order placed');
     }
 
-    public function pay(PaymentIntent $intent): void
+    public function pay(PaymentIntentInterface $intent): void
     {
         $this->update([
             'status' => 'paid',
-            'payment_id' => $intent->getId(),
+            'payment_id' => $intent->getPaymentId(),
         ]);
         // HasCommerceAudit: Records status + payment_id change
 
         activity('commerce:payments')
             ->performedOn($this)
             ->withProperties([
-                'gateway' => $intent->getGatewayReference(),
+                'gateway' => $intent->getGatewayName(),
                 'amount' => $intent->getAmount(),
             ])
             ->log('Payment received');
