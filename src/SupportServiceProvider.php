@@ -70,9 +70,6 @@ final class SupportServiceProvider extends PackageServiceProvider
                 Commands\BoostUpdateCommand::class,
                 Commands\PublishMigrationsCommand::class,
                 Commands\InstallCommand::class,
-                Commands\SeedLanguagesCommand::class,
-                Commands\SeedCurrenciesCommand::class,
-                Commands\SeedTimezonesCommand::class,
             ]);
 
         if (class_exists(Widget::class)) {

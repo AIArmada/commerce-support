@@ -18,15 +18,15 @@ Actions are ideal for:
 
 | Action | Purpose | Entry Point |
 |--------|---------|------------|
-| [ResolveOwnedModelOrFailAction](#resolveownedmodelorfailaction) | Owner-scoped model lookup with authorization | `::run(modelClass, id, owner, includeGlobal)` |
+| [ResolveOwnedModelOrFailAction](#resolveownedmodelorfailaction) | Owner-scoped model lookup with authorization | `::run(modelClass, id, owner, includeGlobal, message)` |
 | [ResolveOwnerJobContextAction](#resolveownerjobcontextaction) | Extract owner context from queued jobs | `::run(job)` |
-| [ProcessWebhookCallAction](#processwebhookcallaction) | Webhook transaction, deduplication, event extraction | `::run(webhookCall, extractEventType, extractEventId, isDuplicateProcessedEvent, processEvent)` |
+| [ProcessWebhookCallAction](#processwebhookcallaction) | Webhook transaction, deduplication, event extraction | `::run(webhookCall, extractEventType, extractEventId, isDuplicateProcessedEvent, processEvent, extractOwner)` |
 | [UpsertEnvVariablesAction](#upsertenvvariablesaction) | Parse and upsert .env file key-value pairs | `::run(updates, force, warn, info)` |
 | [DiscoverCommercePublishTagsAction](#discovercommercepublishtagsaction) | Discover publish tags for configs + migrations | `::run(includeConfig)` |
 | [DiscoverCommerceMigrationPublishTagsAction](#discovercommercemigrationpublishtagsaction) | Discover publish tags for migrations only | `::run()` |
 | [ResolveProjectRootAction](#resolveprojectrootaction) | Detect project root in monorepo/testbench context | `::run()` |
 | [EnsureCustomGuidelinesSymlinkAction](#ensurecustomguidelinessymlinkaction) | Create .ai/guidelines symlink for testbench | `::run(projectRoot, warn)` |
-| [OwnerBatchRunner](#ownerbatchrunner) | Iterate over owners and run a callback for each | `::run(modelClass, callback, options)` |
+| [OwnerBatchRunner](#ownerbatchrunner) | Iterate over owners and run a callback for each | `new OwnerBatchRunner($modelClass, $ownerConfig)` then `->run($callback)` |
 
 ---
 
@@ -48,7 +48,7 @@ $product = ResolveOwnedModelOrFailAction::run(
 );
 ```
 
-**Throws:** `AuthorizationException` if model is not owned by the specified owner (when owner scoping is active).
+**Throws:** `AuthorizationException` when the record is not visible in the resolved owner scope, and `InvalidArgumentException` when the model does not implement owner scoping, when owner scoping is explicitly disabled for it, or when `$owner` is a string.
 
 **Integration:** Already used by `OwnerWriteGuard::findOrFailForOwner()`.
 
@@ -91,27 +91,30 @@ $context = ResolveOwnerJobContextAction::run($job);
 ```php
 use AIArmada\CommerceSupport\Actions\ProcessWebhookCallAction;
 
-$result = ProcessWebhookCallAction::run(
+ProcessWebhookCallAction::run(
     webhookCall: $webhookCall,
-    extractEventType: fn($payload) => $payload['event'],
-    extractEventId: fn($payload) => $payload['event_id'] ?? null,
-    isDuplicateProcessedEvent: function($current, $payload, $eventType) {
-        return ProcessedEvent::where('event_type', $eventType)
-            ->where('external_id', $payload['event_id'] ?? null)
+    extractEventType: fn (array $payload): string => $payload['event'],
+    extractEventId: fn (array $payload): ?string => $payload['id'] ?? null,
+    isDuplicateProcessedEvent: function (WebhookCall $current, array $payload, string $eventType): bool {
+        return Event::where('event_type', $eventType)
+            ->where('external_id', $payload['id'] ?? null)
             ->exists();
     },
-    processEvent: function($eventType, $eventPayload) {
+    processEvent: function (string $eventType, array $eventPayload): void {
         // Process the webhook event
         Event::dispatch(new WebhookEventReceived($eventType, $eventPayload));
-    }
+    },
+    extractOwner: fn (array $payload): array => [$payload['__owner_type'] ?? null, $payload['__owner_id'] ?? null],
 );
 ```
 
 **Guarantees:**
-- Row-level lock prevents duplicate processing
-- Event extraction happens before transaction
-- Custom process callback runs inside transaction
-- Automatic failure tracking
+- Returns `void`; it never returns a value
+- Event type/ID extraction and the `processing` claim run inside a short `lockForUpdate()` transaction
+- The `processEvent` callback runs **after** that transaction has been released, so it must not depend on a held row lock
+- A `UNIQUE(name, event_id, event_type, owner_hash)` violation marks the loser processed without running side effects
+- A `processing` claim older than 30 minutes is treated as stale and reclaimable
+- Automatic failure tracking (`status = failed`, `failed_at`, truncated `exception`)
 
 **Integration:** Used by `CommerceWebhookProcessor::handle()`.
 
@@ -132,10 +135,12 @@ UpsertEnvVariablesAction::run(
         'COMMERCE_DEBUG' => 'false',
     ],
     force: $this->option('force'), // Overwrite existing values
-    warn: fn($message) => $this->components->warn($message),
-    info: fn($message) => $this->components->info($message),
+    warn: fn (string $message) => $this->components->warn($message),
+    info: fn (string $message) => $this->components->info($message),
 );
 ```
+
+`force`, `warn`, and `info` are required. The action always writes `base_path('.env')`.
 
 **Features:**
 - Line-by-line parsing (preserves formatting)
@@ -161,13 +166,17 @@ $tags = DiscoverCommercePublishTagsAction::run(includeConfig: true);
 
 // Result: array<class-string, array<int, string>>
 // [
-//   'AIArmada\\Products\\ProductServiceProvider' => ['commerce-products-migrations', 'commerce-products-config'],
-//   'AIArmada\\Cart\\CartServiceProvider' => ['commerce-cart-migrations'],
+//   'AIArmada\\Cart\\CartServiceProvider' => ['cart-config', 'cart-migrations'],
+//   'AIArmada\\Products\\ProductsServiceProvider' => ['products-config', 'products-migrations'],
 //   ...
 // ]
 ```
 
-**Integration:** Used by `InstallCommand` and `PublishMigrationsCommand`.
+Tags come from each package's spatie `shortName`, so they are
+`{package}-migrations` and (with `includeConfig`) `{package}-config` — not
+`commerce-{package}-*`.
+
+**Integration:** Used by `InstallCommand`.
 
 ---
 
@@ -184,8 +193,8 @@ $migrationTags = DiscoverCommerceMigrationPublishTagsAction::run();
 
 // Result: array<class-string, array<int, string>>
 // [
-//   'AIArmada\\Products\\ProductServiceProvider' => ['commerce-products-migrations'],
-//   'AIArmada\\Cart\\CartServiceProvider' => ['commerce-cart-migrations'],
+//   'AIArmada\\Cart\\CartServiceProvider' => ['cart-migrations'],
+//   'AIArmada\\Products\\ProductsServiceProvider' => ['products-migrations'],
 //   ...
 // ]
 ```
@@ -252,28 +261,33 @@ EnsureCustomGuidelinesSymlinkAction::run(
 ```php
 use AIArmada\CommerceSupport\Support\OwnerBatchRunner;
 
-// Run once with results aggregated (int/sum, array/reduce, or first non-null)
+// $ownerConfig is a map of *config key paths*, not values:
+// ['enabled' => 'products.owner.enabled', 'include_global' => 'products.owner.include_global']
 $runner = new OwnerBatchRunner(
     modelClass: Product::class,
-    ownerConfig: null, // Uses package config for owner scope settings
+    ownerConfig: [
+        'enabled' => 'products.owner.enabled',
+        'include_global' => 'products.owner.include_global',
+    ],
 );
 $counts = $runner->run(function () {
     // Runs inside OwnerContext::withOwner($owner); reads are owner-scoped
     return Product::all()->count();
 });
 
-// ForEach returns collection with one entry per owner
-$allResults = $runner->forEach(function () {
-    return Product::all()->count();
+// forEach returns a collection with one entry per owner
+$allResults = $runner->forEach(function ($owner) {
+    return Product::forOwner($owner)->count();
 });
 ```
 
 **Features:**
 - Iterates owners via distinct owner_type/owner_id from the model table
 - Wraps each iteration in `OwnerContext::withOwner()`
-- Supports explicit-global handling via includeGlobal config
-- `run()` returns reduced results (sum for ints, reduce for arrays)
-- `forEach()` returns Collection of all results
+- Pass `null` for `ownerConfig` to always iterate every owner tuple
+- When `include_global` resolves truthy, iteration runs under `OwnerScopeOverride::withoutIncludeGlobal()` so per-owner work never picks up global rows
+- `run()` returns reduced results (sum for ints, merged sums for arrays, otherwise the first non-null result)
+- `forEach()` returns a Collection of all results
 
 ---
 

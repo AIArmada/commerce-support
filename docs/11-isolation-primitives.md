@@ -20,10 +20,14 @@ The main primitives are:
 6. **`OwnerTuple` utilities** — Shared owner tuple column and parsing helpers for raw rows/payloads
 7. **`SetExplicitGlobalOwnerContext`** — Middleware for routes that intentionally need explicit global owner context
 
-All owner-taking helpers accept either:
+`OwnerCache`, `OwnerFilesystem`, and `OwnerScopeKey` accept either:
 
 - an Eloquent model, or
 - an implementation of `AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable`
+
+Write-guard and query helpers (`OwnerWriteGuard`, `ResolveOwnedModelOrFailAction`,
+`OwnerQuery`, `HasOwner` scopes) take a model, `null` for global-only, or the
+`OwnerContext::CURRENT` sentinel instead.
 
 Use the contract for lightweight adapters instead of raw duck-typing.
 
@@ -484,7 +488,7 @@ class ExportOrdersJob implements ShouldQueue
 - Use **logical** keys (e.g., `cart.summary`), not IDs
 - Use **dots** or **dashes** in keys, not colons (colons are scoped key separators)
 - Forget keys explicitly or rely on TTL for cleanup
-- For Redis/Memcached, use `forgetOwner()` for bulk cleanup
+- For bulk cleanup, call `forgetOwner()` — it invalidates the owner's keys on any driver by bumping the cache version
 
 ### Filesystem Paths
 
@@ -526,7 +530,7 @@ class ExportOrdersJob implements ShouldQueue
 **Solution**:
 - Always use `OwnerCache` instead of `Cache::*` directly
 - Verify middleware is setting owner context on every request
-- Remember that `forgetOwner()` bulk-clears only on tag-capable drivers such as Redis/Memcached
+- Remember that `forgetOwner()` bumps the owner's cache version, so it invalidates on every driver; the tag flush is a best-effort memory release on tag-capable drivers such as Redis/Memcached
 
 ### Files appearing in wrong location
 

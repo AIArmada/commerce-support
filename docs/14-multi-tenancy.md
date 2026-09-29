@@ -575,7 +575,10 @@ Webhook processors, health checks, reports, exports, and imports follow the same
 
 ## Owner Scope Contract
 
-Owner-scoped helper APIs accept either an Eloquent model or an `AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable` implementation.
+`OwnerCache`, `OwnerFilesystem`, and `OwnerScopeKey` accept either an Eloquent model
+or an `AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable` implementation.
+Write-guard and query helpers take a model, `null` for global-only, or the
+`OwnerContext::CURRENT` sentinel instead.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable;
