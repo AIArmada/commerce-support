@@ -575,10 +575,7 @@ Webhook processors, health checks, reports, exports, and imports follow the same
 
 ## Owner Scope Contract
 
-`OwnerCache`, `OwnerFilesystem`, and `OwnerScopeKey` accept either an Eloquent model
-or an `AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable` implementation.
-Write-guard and query helpers take a model, `null` for global-only, or the
-`OwnerContext::CURRENT` sentinel instead.
+Owner-scoped helper APIs accept either an Eloquent model or an `AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable` implementation.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable;
@@ -678,6 +675,104 @@ $category = OwnerWriteGuard::findOrFailForOwner(
 ```
 
 Apply the same pattern to bulk actions, relation managers, imports, exports, and custom page actions.
+
+## Livewire Record Components
+
+Livewire restores public model props via `newQueryForRestoration()`, which bypasses
+Eloquent global scopes — including `OwnerScope`. Filament record pages already
+re-authorize per request, but record widgets do not. Use
+`VerifiesRecordOwnerContext` so every record widget re-verifies its record on
+every request:
+
+```php
+use AIArmada\CommerceSupport\Filament\Concerns\VerifiesRecordOwnerContext;
+use Illuminate\Database\Eloquent\Model;
+use Livewire\Attributes\Locked;
+
+final class OrderTimelineWidget extends Widget
+{
+    use VerifiesRecordOwnerContext;
+
+    #[Locked]
+    public ?Model $record = null;
+}
+```
+
+Hook wiring is automatic (Livewire invokes `mount{Trait}` / `hydrate{Trait}`),
+including for lazy widgets whose mount runs on a later request. No per-widget
+wiring beyond `use`ing the trait.
+
+Behavior contract:
+
+- At mount the guard verifies the record is visible in the current scope, then
+  stamps the owner context (tuple plus explicit-global flag) and record
+  identity (class, key, owner tuple) into a locked snapshot prop.
+- On every subsequent request a changed context, changed record identity, a
+  missing stamp, or a failed fresh visibility check fails closed: the record
+  is cleared so the widget renders its empty state and write actions no-op.
+- Polling and lazy loads simply re-run the same check; a mismatch renders
+  empty state rather than erroring or redirecting.
+- The guard skips (nothing to protect) for null records, unsaved records
+  without a stamp, non-owner-scoped models, and models with scoping disabled.
+
+`record` must stay a nullable model prop treated as mount-time input. Keep the
+existing per-action write revalidation as defense in depth; this guard closes
+the stale-display path.
+
+Components holding their record under another prop name (e.g. a page with
+`public ?Event $event`) override the prop name:
+
+```php
+protected function ownerGuardedPropName(): string
+{
+    return 'event';
+}
+```
+
+Restored models arrive as lazy proxies: if the row was deleted, first access
+throws `ModelNotFoundException`, which the guard converts to the same
+fail-closed empty state. The visibility check replaces only the owner scope
+(with current config); any other model scopes still apply. When the model's
+scope config carries a fixed `owner`, that pin governs both the stamp and
+the visibility check (mirroring `OwnerScope`), so ambient context changes
+never invalidate pinned records. Like `OwnerScope`, the check honors
+`OwnerScopeOverride::withoutIncludeGlobal()` suppression.
+
+## Livewire Relation Managers
+
+Relation managers have the same stale-`ownerRecord` exposure as record
+widgets, but they cannot fail closed by clearing: `ownerRecord` is
+non-nullable and every child query derives from it. Use the abort-style
+companion `VerifiesRelationManagerOwnerContext`, which reuses the same
+stamp-and-reverify logic and aborts with 403 on mismatch:
+
+```php
+use AIArmada\CommerceSupport\Filament\Concerns\VerifiesRelationManagerOwnerContext;
+use Filament\Resources\RelationManagers\RelationManager;
+
+final class ItemsRelationManager extends RelationManager
+{
+    use VerifiesRelationManagerOwnerContext;
+
+    protected static string $relationship = 'items';
+}
+```
+
+Hook wiring is automatic (Livewire invokes `mount{Trait}` /
+`hydrate{Trait}` for nested traits too). The mount hook aborts the whole
+page when the owner record is already cross-owner; the hydrate hook runs
+before action handlers on subsequent requests, so a mid-session owner
+change, reassignment, or deletion blocks both stale child tables and
+untrusted writes. The guard skips (nothing to protect) for non-owner-scoped
+models and models with scoping disabled.
+
+Composed failure mode: on updates, Filament's own
+`hydrateCanAuthorizeAccess` hook runs first and touches the owner record
+for managers whose `canViewForRecord()` resolves it — a row deleted after
+mount then surfaces as 404 (`ModelNotFoundException`). Managers whose
+authorization never touches the record reach this guard instead, which
+converts the missing row to its 403. An existing-but-cross-owner row
+always aborts 403 here. All paths are fail-closed.
 
 ## Best Practices
 

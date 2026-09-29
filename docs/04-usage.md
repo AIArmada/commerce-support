@@ -9,7 +9,7 @@ to choose the right primitive, contract, or helper before diving into the deeper
 
 ## 1. Pick the right support surface
 
-- [Multi-tenancy](04-multi-tenancy.md) — owner scoping, explicit global context, route binding, and write guards
+- [Multi-tenancy](14-multi-tenancy.md) — owner scoping, explicit global context, route binding, and write guards
 - [Payment Contracts](05-payment-contracts.md) — common payment abstractions for gateway packages
 - [Targeting Engine](06-targeting-engine.md) — rule evaluation and eligibility checks
 - [Auditing & Logging](07-auditing-logging.md) — shared business logging and compliance auditing
@@ -50,7 +50,7 @@ $summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), f
 
 `MoneyNormalizer::format()` now defaults to `MYR` when you omit the currency code. Pass an explicit code whenever a downstream package or UI contract needs a different currency.
 
-## 4. Convert currencies for display only
+## 6. Convert currencies for display only
 
 `CurrencyConverter` folds per-currency minor-unit amounts into reporting totals. Converted totals are approximations for display and aggregation — never feed them into balances, payouts, or any other money movement.
 
@@ -68,7 +68,7 @@ $converter->totalMinor(['USD' => 10000, 'THB' => 5000], 'USD'); // null
 
 Totals refuse partial conversion: when any leg lacks a rate the whole total is null, so callers show a per-currency breakdown instead of a misleading number.
 
-## 5. Standardize Filament package navigation
+## 4. Standardize Filament package navigation
 
 When an application installs many Commerce Filament packages, register the shared navigation plugin once on the panel:
 
@@ -87,32 +87,7 @@ public function panel(Panel $panel): Panel
 
 Then configure groups and hidden entries in `config/commerce-support.php` under `filament.navigation`. This keeps menu shape in the application, while packages still register their resources, pages, routes, policies, and owner-scoped queries normally.
 
-## 6. Treat the deep docs as task guides
+## 5. Treat the deep docs as task guides
 
 Use the linked pages above as task-focused guides. `commerce-support` is intentionally broad; the
 canonical usage path here helps AI and humans decide which foundation document to read next.
-
-## 7. Console commands
-
-```bash
-# Publish migrations and, with --with-config, config for detected Commerce packages
-php artisan commerce:install --list
-php artisan commerce:install --all
-php artisan commerce:install --tags=cart-migrations,affiliates-migrations
-php artisan commerce:install --all --with-config
-
-# Publish migration files only, preserving original timestamps
-php artisan commerce:publish-migrations --list
-php artisan commerce:publish-migrations --all
-
-# Interactive env wizard (CHIP, J&T Express, JSON column type)
-php artisan commerce:setup --force
-
-# Reference data seeding
-php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\LanguageSeeder"
-php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\CurrencySeeder"
-php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\TimezoneSeeder"
-```
-
-`--dry-run` lists what would be published, `--force` overwrites existing published files, and
-`--tags=` accepts `*-migrations` (always) plus `*-config` (only with `--with-config`).

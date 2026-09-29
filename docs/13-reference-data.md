@@ -13,7 +13,7 @@ A `languages` table is available with `code` (ISO 639-1), `name`, `native` (endo
 Seed it once after migrating:
 
 ```bash
-php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\LanguageSeeder"
+php artisan commerce:seed-languages
 ```
 
 Or from a seeder:
@@ -27,7 +27,7 @@ $this->call(\AIArmada\CommerceSupport\Database\Seeders\LanguageSeeder::class);
 The `currencies` table contains shared ISO 4217 currency metadata, including symbols and display precision.
 
 ```bash
-php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\CurrencySeeder"
+php artisan commerce:seed-currencies
 ```
 
 ## Timezones
@@ -35,5 +35,5 @@ php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\CurrencyS
 The `timezones` table contains shared IANA timezone identifiers.
 
 ```bash
-php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\TimezoneSeeder"
+php artisan commerce:seed-timezones
 ```

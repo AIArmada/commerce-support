@@ -49,4 +49,4 @@ keywords:
 
 ## Docs map
 - Start: `01-overview` → `03-configuration` → `04-usage` → `99-troubleshooting`
-- Deep dives: `04-multi-tenancy.md`, `05-payment-contracts.md`, `06-targeting-engine.md`, `07-auditing-logging.md`, `08-webhooks.md`, `09-health-checks.md`, `10-traits-utilities.md`, `11-isolation-primitives.md`, `12-actions.md`, `13-reference-data.md`
+- Deep dives: `05-payment-contracts.md`, `06-targeting-engine.md`, `07-auditing-logging.md`, `08-webhooks.md`, `09-health-checks.md`, `10-traits-utilities.md`, `11-isolation-primitives.md`, `12-actions.md`, `13-reference-data.md`, `14-multi-tenancy.md`

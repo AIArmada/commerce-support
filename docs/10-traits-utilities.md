@@ -55,7 +55,6 @@ Verify gateway implementations:
 
 ```php
 use AIArmada\CommerceSupport\Testing\PaymentGatewayContractTests;
-use AIArmada\CommerceSupport\Contracts\Payment\CheckoutableInterface;
 use Tests\TestCase;
 
 class StripeGatewayTest extends TestCase
@@ -69,29 +68,18 @@ class StripeGatewayTest extends TestCase
         );
     }
 
-    // Both abstract methods are required
     protected function createCheckoutable(int $amount = 10000): CheckoutableInterface
     {
-        return Cart::factory()->create(['total_minor' => $amount]);
+        return Checkoutable::factory()->create(['total' => $amount]);
     }
-
-    // Optional overrides:
-    // - protected function createCustomer(): ?CustomerInterface
-    // - protected function shouldSkipApiTests(): bool
 
     // All contract tests run automatically:
     // - test_gateway_has_name()
-    // - test_gateway_has_display_name()
-    // - test_gateway_reports_test_mode()
-    // - test_gateway_supports_returns_boolean()
-    // - test_gateway_has_webhook_handler()
     // - test_create_payment_returns_payment_intent()
     // - test_get_payment_returns_payment_intent()
     // - test_get_payment_throws_for_invalid_id()
     // - test_cancel_payment_returns_cancelled_status()
     // - test_refund_payment_returns_refunded_status()
-    // - test_partial_refund_returns_partially_refunded_status()
-    // - test_get_payment_methods_returns_array()
 }
 ```
 
@@ -116,14 +104,8 @@ class CartTest extends TestCase
     // Runs contract tests:
     // - test_checkoutable_has_line_items()
     // - test_checkoutable_has_subtotal()
-    // - test_checkoutable_has_discount()
-    // - test_checkoutable_has_tax()
-    // - test_checkoutable_has_total()
-    // - test_checkoutable_total_is_consistent()
     // - test_checkoutable_has_currency()
-    // - test_checkoutable_has_reference()
-    // - test_checkoutable_notes_is_nullable_string()
-    // - test_checkoutable_metadata_is_array()
+    // - test_checkoutable_total_is_consistent()
 }
 ```
 
@@ -145,31 +127,22 @@ class ProductTest extends TestCase
 
     protected function createOwner(): Model
     {
-        return User::factory()->create();
+        return Store::factory()->create();
     }
 
     protected function createModelForOwner(Model $owner): Model
     {
         return Product::factory()->create([
-            'owner_type' => $owner->getMorphClass(),
+            'owner_type' => $owner::getMorphClass(),
             'owner_id' => $owner->getKey(),
         ]);
     }
 
-    // Optional override: protected function createGlobalModel(): Model
-
     // Runs security tests:
     // - test_model_uses_has_owner_trait()
-    // - test_model_can_be_assigned_owner()
-    // - test_model_can_be_global()
-    // - test_for_owner_scope_filters_by_owner()
-    // - test_for_owner_with_include_global_includes_global_records()
-    // - test_global_only_scope_returns_only_global_records()
-    // - test_owner_context_with_owner_scopes_queries()
-    // - test_assign_owner_sets_owner()
-    // - test_remove_owner_throws_on_persisted_owned_record()
-    // - test_remove_owner_allowed_on_unsaved_model()
     // - test_cross_tenant_access_prevented()
+    // - test_for_owner_scope_filters_by_owner()
+    // - test_global_only_scope_returns_only_global_records()
 }
 ```
 
@@ -243,9 +216,7 @@ class Cart extends Model
 
 ## ValidatesConfiguration
 
-Assert that required config keys are set at boot time. This does **not** use
-Laravel's validator and accepts no rules — the second argument is a flat list of
-dot-notation key paths, each of which must resolve to a non-`null` value:
+Validate that required package configuration keys exist at boot time:
 
 ```php
 use AIArmada\CommerceSupport\Traits\ValidatesConfiguration;
@@ -258,20 +229,20 @@ class CartServiceProvider extends ServiceProvider
     {
         $this->validateConfiguration('cart', [
             'database.table_prefix',
-            'defaults.currency',
+            'money.default_currency',
             'owner.enabled',
         ]);
     }
 }
 ```
 
-### Behaviour
+Each key is resolved in dot notation against the named config file. A missing
+(`null`) value throws a `RuntimeException` naming the full key and the publish
+tag that provides it.
 
-- Returns `void` and throws `RuntimeException` naming the missing key and the
-  `vendor:publish --tag={configFile}-config` command
-- Skipped entirely unless `config('{configFile}.validate_config')` is `true`;
-  outside production the default is to skip even when the key is set
-- Call `shouldSkipConfigurationValidation()` in your provider to override the gate
+Validation is skipped outside production unless the package opts in with a
+`<package>.validate_config` flag, and it is skipped for console runs unless
+that flag is set.
 
 ## HasOwnerScopeConfig
 
@@ -357,30 +328,28 @@ use function AIArmada\CommerceSupport\commerce_json_column_type;
 // In migrations
 Schema::create('products', function (Blueprint $table) {
     $table->uuid('id')->primary();
-    $table->{commerce_json_column_type('products')}('metadata');
+    $table->{commerce_json_column_type()}('metadata');
 });
 ```
 
 ### Configuration
 
-Pass the package config key as the first argument. Resolution order:
-
-1. env `{PACKAGE}_JSON_COLUMN_TYPE` (for example `PRODUCTS_JSON_COLUMN_TYPE`)
-2. env `COMMERCE_JSON_COLUMN_TYPE`
-3. `config('{package}.database.json_column_type')`
-4. the `$default` argument (`'jsonb'` when omitted)
-
 ```php
-// config/products.php
+// config/commerce-support.php
 return [
     'database' => [
         'json_column_type' => 'json', // or 'text' for SQLite
     ],
 ];
-```
 
-> **warning**
-> The helper does not read `commerce-support.database.json_column_type`. That key configures this package's own migrations only; pass your own package key, or set the `COMMERCE_JSON_COLUMN_TYPE` env var for a global override.
+// Or per-package override
+// config/products.php
+return [
+    'database' => [
+        'json_column_type' => 'jsonb', // PostgreSQL
+    ],
+];
+```
 
 ## OwnerContext
 
@@ -571,7 +540,7 @@ TextInput::make('slug')
     ->unique(ignoreRecord: true, modifyRuleUsing: fn (Unique $rule): Unique => OwnerUniqueRule::scopeToOwner($rule, Doc::class));
 ```
 
-The model must expose `::ownerScopeConfig()`, which comes from the `HasOwnerScopeConfig` trait (`HasOwner` alone does not declare it). When owner scoping is disabled for the model the rule is returned unchanged; with no resolved owner it constrains to global-only rows.
+The model must expose `::ownerScopeConfig()` (provided by `HasOwnerScopeConfig`). When owner scoping is disabled for the model the rule is returned unchanged; with no resolved owner it constrains to global-only rows.
 
 ## UniqueSlug
 
@@ -650,78 +619,51 @@ Unsaved slug edits on the model are discarded in favor of the stored value first
 
 ### CommerceException
 
-Base exception for all commerce errors. Extends `RuntimeException` and has no
-static factories:
+Base exception for all commerce errors:
 
 ```php
 use AIArmada\CommerceSupport\Exceptions\CommerceException;
 
 throw new CommerceException('Something went wrong');
-
-$exception = new CommerceException(
-    message: 'Payment failed',
-    errorCode: 'payment_failed',
-    errorData: ['gateway' => 'stripe'],
+throw new CommerceException(
+    message: 'Operation failed',
+    errorCode: 'operation_failed',
+    errorData: ['operation' => 'create', 'subject' => 'order'],
 );
-
-$exception->getErrorCode();   // 'payment_failed'
-$exception->getErrorData();   // ['gateway' => 'stripe']
-$exception->getContext();     // message, code, error_code, data, file, line
 ```
 
 ### CommerceApiException
 
-API-related errors with HTTP context. Constructor:
-`(string $message, int $statusCode = 0, array $errorData = [], ?string $endpoint = null, mixed $apiResponse = null, ?string $errorCode = null, ?Throwable $previous = null)`.
-Its only static factory is `fromResponse()`:
+API-related errors with HTTP context:
 
 ```php
 use AIArmada\CommerceSupport\Exceptions\CommerceApiException;
 
-throw CommerceApiException::fromResponse(
-    ['error' => 'Invalid API key'],  // falls back through message/error/error_description
-    401,
-    '/v1/payments',
-);
+throw CommerceApiException::fromResponse($responseData, $statusCode, $endpoint);
+throw new CommerceApiException('Payment gateway down', statusCode: 503);
 ```
 
 ### PaymentGatewayException
 
-Payment-specific errors. Static factories:
-
-| Factory | Signature |
-|---|---|
-| `creationFailed` | `string $gatewayName, string $message, ?string $errorCode = null, ...` |
-| `notFound` | `string $gatewayName, string $paymentId` |
-| `refundFailed` | `string $gatewayName, string $paymentId, string $message, ...` |
-| `captureFailed` | `string $gatewayName, string $paymentId, string $message, ...` |
-| `cancellationFailed` | `string $gatewayName, string $paymentId, string $message, ...` |
-| `invalidConfiguration` | `string $gatewayName, string $message` |
-| `unsupportedOperation` | `string $gatewayName, string $operation` |
-| `currencyMismatch` | `string $gatewayName, string $expected, string $actual` |
-| `invalidStatusTransition` | `$from, $to, array $allowed = []` |
+Payment-specific errors:
 
 ```php
 use AIArmada\CommerceSupport\Exceptions\PaymentGatewayException;
 
-throw PaymentGatewayException::refundFailed('stripe', 'pi_123', 'Card already refunded');
-throw PaymentGatewayException::currencyMismatch('stripe', 'MYR', 'USD');
+throw PaymentGatewayException::creationFailed('stripe', 'Connection timeout');
+throw PaymentGatewayException::notFound('stripe', $paymentId);
+throw PaymentGatewayException::refundFailed('stripe', $paymentId, 'Already refunded');
+throw PaymentGatewayException::invalidConfiguration('stripe', 'Missing API key');
 ```
 
 ### WebhookVerificationException
 
-Webhook handling errors. Every factory takes a `$gatewayName` argument:
-
-| Factory | Signature |
-|---|---|
-| `missingSignature` | `string $gatewayName` |
-| `invalidSignature` | `string $gatewayName` |
-| `missingPublicKey` | `string $gatewayName` |
-| `invalidPayload` | `string $gatewayName, string $reason` |
+Webhook handling errors:
 
 ```php
 use AIArmada\CommerceSupport\Exceptions\WebhookVerificationException;
 
-throw WebhookVerificationException::invalidSignature('chip');
-throw WebhookVerificationException::invalidPayload('chip', 'Missing event_id');
+throw WebhookVerificationException::missingSignature('stripe');
+throw WebhookVerificationException::invalidSignature('stripe');
+throw WebhookVerificationException::invalidPayload('stripe', 'Missing event_id');
 ```

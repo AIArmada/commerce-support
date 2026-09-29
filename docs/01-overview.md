@@ -202,7 +202,7 @@ $eligible = $engine->evaluate($targeting, $context);
 - [Installation](02-installation.md)
 - [Configuration](03-configuration.md)
 - [Usage](04-usage.md)
-- [Multi-tenancy](04-multi-tenancy.md)
+- [Multi-tenancy](14-multi-tenancy.md)
 - [Payment Contracts](05-payment-contracts.md)
 - [Targeting Engine](06-targeting-engine.md)
 - [Webhooks](08-webhooks.md)

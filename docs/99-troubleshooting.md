@@ -268,16 +268,16 @@ protected function processEvent(string $eventType, array $payload): void
 
 ## Isolation Primitive Issues
 
-### OwnerCache bulk cleanup does nothing
+### OwnerCache bulk cleanup misses keys
 
-**Cause:** The active cache driver does not support tags.
+**Cause:** Keys were written outside `OwnerCache` (raw `Cache::` calls) so they carry no owner version.
 
-`OwnerCache::forgetOwner()` only bulk-clears owner groups on tag-capable stores such as Redis or Memcached. On file/array/database stores it is intentionally a no-op.
+`OwnerCache::forgetOwner()` bumps the owner's cache version, which invalidates every versioned key on any driver; tag flush is kept as a best-effort memory release where supported.
 
 **Solution:**
 
+- route owner-sensitive entries through `OwnerCache::put()` / `remember()` so they pick up the version
 - use explicit `OwnerCache::forget($owner, $logicalKey)` when you know the keys to clear
-- or move owner-sensitive caching to a tag-capable store if owner-wide invalidation is required
 
 ### Non-Eloquent owner object rejected by OwnerCache / OwnerFilesystem
 
@@ -312,7 +312,7 @@ final readonly class OwnerReference implements OwnerScopeIdentifiable
 **Cause:** The job payload does not expose owner data through either:
 
 - a public owner-bearing model property, or
-- public `owner_type` + `owner_id` fields
+- public `ownerType` / `ownerId` / `ownerIsGlobal` fields
 
 **Solution:** expose one of those patterns publicly so the trait can resolve the owner before `performJob()` runs.
 

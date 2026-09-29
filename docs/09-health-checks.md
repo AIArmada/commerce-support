@@ -66,44 +66,23 @@ class CartHealthCheck extends CommerceHealthCheck
 
 ### Implement HasHealthCheck Interface
 
-For services that expose their own checks, implement `HasHealthCheck` and return
-the registered check instances:
+For services that provide health checks:
 
 ```php
 use AIArmada\CommerceSupport\Contracts\HasHealthCheck;
-use AIArmada\CommerceSupport\Health\CommerceHealthCheck;
-use Spatie\Health\Checks\Result;
-
-final class PaymentGatewayHealthCheck extends CommerceHealthCheck
-{
-    public ?string $name = 'Payment Gateway';
-
-    protected function performCheck(): Result
-    {
-        try {
-            $response = Http::timeout(5)->get($this->getApiStatusUrl());
-        } catch (\Throwable $e) {
-            return $this->failure("Gateway unreachable: {$e->getMessage()}");
-        }
-
-        return $response->successful()
-            ? $this->success('Gateway operational')
-            : $this->failure("Gateway returned: {$response->status()}");
-    }
-}
+use Spatie\Health\Checks\Check;
 
 class PaymentGatewayService implements HasHealthCheck
 {
-    /** @return array<int, \Spatie\Health\Checks\Check> */
+    /** @return array<int, Check> */
     public function getHealthChecks(): array
     {
-        return [new PaymentGatewayHealthCheck()];
+        return [
+            PaymentGatewayHealthCheck::new(),
+        ];
     }
 }
 ```
-
-`CommerceHealthCheck` also provides `success()`, `failure()`, and `warning()`
-helpers that accept an optional `array $meta` second argument.
 
 ## Registering Health Checks
 
@@ -280,32 +259,21 @@ class AdminPanelProvider extends PanelProvider
 
 ### Customizing the Widget
 
-```blade
-{{-- resources/views/vendor/commerce-support/widgets/health-status.blade.php --}}
-<x-filament-widgets::widget>
-    <x-filament::section heading="Commerce health" />
-</x-filament-widgets::widget>
-```
-
 ```php
 class CommerceHealthWidget extends Widget
 {
-    protected string $view = 'commerce-support::widgets.health-status';
+    protected static string $view = 'commerce-support::filament.widgets.health';
 
     protected int | string | array $columnSpan = 'full';
 
     public static function canView(): bool
     {
-        $ability = (string) config('commerce-support.health.view_ability', 'viewCommerceHealth');
+        $ability = config('commerce-support.health.view_ability', 'viewCommerceHealth');
 
-        if ($ability === '' || auth()->user() === null) {
-            return false;
-        }
-
-        return Gate::forUser(auth()->user())->allows($ability);
+        return auth()->user()?->can($ability) ?? false;
     }
 
-    public function getPollingInterval(): ?string
+    protected function getPollingInterval(): ?string
     {
         return '30s'; // Auto-refresh every 30 seconds
     }
@@ -326,34 +294,30 @@ Configure the required ability in `config/commerce-support.php`:
 
 ```php
 // routes/web.php
-use Spatie\Health\Http\Controllers\HealthCheckJsonResultsController;
+use Spatie\Health\Http\Controllers\HealthCheckResultsController;
 
-Route::get('health', HealthCheckJsonResultsController::class);
+Route::get('health', HealthCheckResultsController::class);
 ```
 
 ### JSON Response
 
-`finishedAt` is a Unix timestamp, not an ISO string:
-
 ```json
 {
-    "finishedAt": 1705314600,
+    "finishedAt": "2024-01-15T10:30:00Z",
     "checkResults": [
         {
             "name": "Database",
             "label": "Database",
-            "notificationMessage": "",
-            "shortSummary": "Connected",
             "status": "ok",
-            "meta": []
+            "notificationMessage": "",
+            "shortSummary": "Connected"
         },
         {
             "name": "CartHealthCheck",
             "label": "Cart System",
-            "notificationMessage": "",
-            "shortSummary": "Abandoned carts: 125",
             "status": "ok",
-            "meta": []
+            "notificationMessage": "",
+            "shortSummary": "Abandoned carts: 125"
         }
     ]
 }

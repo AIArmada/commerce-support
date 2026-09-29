@@ -201,7 +201,7 @@ class ProcessPaymentWebhook extends CommerceWebhookProcessor
 }
 ```
 
-The base job extracts the event type from `event_type` (falling back to `'unknown'`) and the provider event id from `event_id` or `id`. It acquires a row lock, skips already-processed rows, deduplicates provider event IDs across webhook rows (falling back to a payload hash when the payload carries no event ID), calls `processEvent()`, then marks the `WebhookCall` as processed. Override `extractEventType()` / `extractEventId()` if your gateway uses different payload keys.
+The base job extracts the event type from `event_type`, `event`, or `type`, acquires a row lock, skips already-processed rows, deduplicates provider event IDs across webhook rows (falling back to a payload hash when the payload carries no event ID), calls `processEvent()`, then marks the `WebhookCall` as processed.
 
 ### Idempotent Processing
 
@@ -209,12 +209,12 @@ The base handler is idempotent at two levels:
 
 **Row-level** — a `SELECT ... FOR UPDATE` lock plus `processed_at` check prevents a single row from being processed twice even under concurrent delivery.
 
-**Provider-event level** — when the payload carries an event ID (`event_id` or `id`) the processor checks for another already-processed row with the same webhook name and event ID. The event type is matched strictly:
+**Provider-event level** — when the payload carries an event ID (`event_id`, `eventId`, `id`, or `data.id`) the processor checks for another already-processed row with the same webhook name and event ID. The event type is matched strictly:
 
-- The current payload's event type (whatever `extractEventType()` returns) is matched strictly: a candidate row must carry the **same** `event_type` column value. A row with the same event ID but a different event type (e.g. `payment.completed` vs `payment.refunded`) is **not** considered a duplicate and will be processed independently.
-- If the current payload has **no** event type, `extractEventType()` returns `'unknown'`, so only rows that also carry `unknown` are treated as duplicates, preventing accidental suppression when a provider starts adding type fields in a later webhook version.
+- If the current payload has an event type field (`event_type`, `event`, or `type`), a candidate row must carry the **same type value** in at least one of those fields. A row with the same event ID but a different event type (e.g. `payment.completed` vs `payment.refunded`) is **not** considered a duplicate and will be processed independently.
+- If the current payload has **no** event type in any field, only rows that also have no event type are treated as duplicates, preventing accidental suppression when a provider starts adding type fields in a later webhook version.
 - If the payload has **no event ID**, the claim stamps a hash of the payload as the event identity instead, so identical redeliveries still deduplicate while genuinely different payloads process independently.
-- Deduplication is scoped to the owner: the claim hashes the `__owner_type` / `__owner_id` identity read from the payload (stamped by the receiving controller) into an `owner_hash` column, and a candidate row must carry the same `owner_hash`. Ownerless deliveries hash to a fixed sentinel and only deduplicate against other ownerless deliveries. This applies only when the `WebhookCall` table has the `owner_type` / `owner_id` / `owner_hash` columns.
+- Deduplication is scoped to the owner: a candidate row must carry the **same owner identity** (`__owner_type` / `__owner_id` stamped on the payload by the receiving controller). Two owners' identical provider events are processed independently; deliveries without an owner identity hash to a fixed ownerless sentinel and only deduplicate against other ownerless deliveries.
 
 You should still make your own domain writes idempotent inside `processEvent()` (for example, avoid double-marking paid orders):
 
@@ -257,8 +257,8 @@ class ProcessPaymentWebhook extends CommerceWebhookProcessor
     {
         if (! isset($payload['payment_id'])) {
             throw WebhookVerificationException::invalidPayload(
-                gatewayName: 'payment-gateway',
-                reason: 'Missing payment_id in webhook payload',
+                'payment-gateway',
+                'Missing payment_id in webhook payload'
             );
         }
 
@@ -293,14 +293,14 @@ $payload = new WebhookPayload(
     eventType: 'payment.completed',
     paymentId: 'pi_xyz789',
     status: PaymentStatus::PAID,
-    reference: 'INV-2501-000001',
+    reference: 'order_123',
     gatewayName: 'payment-gateway',
     occurredAt: now(),
-    rawData: $webhookCall->payload,
+    rawData: $webhookCall->payload
 );
 
 // Use in handler
-if ($payload->isPaymentSuccess()) {
+if ($payload->status->isSuccessful()) {
     $this->completeOrder($payload->paymentId);
 }
 ```
