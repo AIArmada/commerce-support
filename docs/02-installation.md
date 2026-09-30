@@ -6,7 +6,7 @@ title: Installation
 
 ## Requirements
 
-- PHP 8.4+
+- PHP 8.5+
 - Laravel 13+
 - One of: MySQL 8+, PostgreSQL 13+, SQLite 3.38+
 

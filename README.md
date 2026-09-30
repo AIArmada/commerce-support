@@ -13,7 +13,7 @@ This package provides shared utilities, traits, and standardized patterns used a
 
 | Requirement | Version |
 |-------------|---------|
-| PHP | 8.4+ |
+| PHP | 8.5+ |
 | Laravel | 13.0+ |
 | akaunting/laravel-money | 6.0+ |
 | spatie/laravel-package-tools | 1.92+ |

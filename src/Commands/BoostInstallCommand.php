@@ -100,7 +100,6 @@ final class BoostInstallCommand extends Command
     private function getApplicationNamespace(): ?string
     {
         $property = new ReflectionProperty(app(), 'namespace');
-        $property->setAccessible(true);
 
         /** @var string|null $namespace */
         $namespace = $property->getValue(app());
@@ -111,7 +110,6 @@ final class BoostInstallCommand extends Command
     private function setApplicationNamespace(?string $namespace): void
     {
         $property = new ReflectionProperty(app(), 'namespace');
-        $property->setAccessible(true);
         $property->setValue(app(), $namespace);
     }
 }
