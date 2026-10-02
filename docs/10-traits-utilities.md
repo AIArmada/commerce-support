@@ -729,3 +729,13 @@ throw WebhookVerificationException::missingSignature('chip');
 throw WebhookVerificationException::invalidSignature('chip');
 throw WebhookVerificationException::invalidPayload('chip', 'Missing event_id');
 ```
+
+
+## Public handles
+
+`AIArmada\CommerceSupport\Support\PublicHandle` provides shared handle
+normalization, validation rules, random assignment, and deterministic assignment
+from an opaque identity. Handles are lowercase ASCII, 3–40 characters, with
+letters, digits, and single internal hyphens or underscores. Reserved system
+names are rejected. Identity owners enforce uniqueness in their public namespace;
+this helper does not own identity persistence or URL aliases.
