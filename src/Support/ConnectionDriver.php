@@ -6,6 +6,7 @@ namespace AIArmada\CommerceSupport\Support;
 
 use Illuminate\Database\Connection;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\MySqlConnection;
 use LogicException;
 
 final class ConnectionDriver
@@ -20,5 +21,11 @@ final class ConnectionDriver
             'Expected a concrete database connection instance, got [%s].',
             $connection::class,
         ));
+    }
+
+    public static function isMariaDb(ConnectionInterface $connection): bool
+    {
+        return self::name($connection) === 'mariadb'
+            || ($connection instanceof MySqlConnection && $connection->isMaria());
     }
 }
