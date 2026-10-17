@@ -8,24 +8,24 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use RuntimeException;
 
 /**
  * Explicit-ESCAPE LIKE predicates for user-supplied search input.
  *
  * SQLite has no default LIKE escape character, so a pattern escaped with
- * backslashes matches nothing unless the query declares `ESCAPE '\'`.
+ * backslashes matches nothing unless the query declares an ESCAPE clause.
  * These helpers keep that declaration in one place; every caller gets the
  * same escaping and the same cross-driver behavior (ILIKE on pgsql).
  */
 final class LikeSearch
 {
     /**
-     * The driver-aware ESCAPE fragment for backslash-escaped patterns.
+     * The ESCAPE fragment for backslash-escaped patterns.
      *
-     * MySQL string literals treat backslash as an escape character, so
-     * `ESCAPE '\'` is an unterminated literal there and must be written
-     * `ESCAPE '\\'` instead. SQLite, Postgres, and SQL Server string
-     * literals have no backslash escapes, so `ESCAPE '\'` is correct.
+     * SQLite has no default LIKE escape character, so these queries declare
+     * `ESCAPE '\\'` explicitly. PostgreSQL uses ILIKE for case-insensitive
+     * predicates; SQL Server-compatible paths keep the same escape fragment.
      *
      * @param  EloquentBuilder<Model>|QueryBuilder|ConnectionInterface  $source
      */
@@ -34,10 +34,12 @@ final class LikeSearch
         $connection = $source instanceof ConnectionInterface
             ? $source
             : $source->getConnection();
+        $driver = ConnectionDriver::name($connection);
 
-        return ConnectionDriver::name($connection) === 'mysql'
-            ? "ESCAPE '\\\\'"
-            : "ESCAPE '\\'";
+        return match ($driver) {
+            'pgsql', 'sqlite', 'sqlsrv' => "ESCAPE '\\'",
+            default => throw new RuntimeException("Unsupported database driver [{$driver}] for escaped LIKE searches."),
+        };
     }
 
     public static function escape(string $value): string

@@ -21,7 +21,7 @@ Callers retain their own candidate fields, comparability rules, minimum scores, 
 
 ## LikeSearch
 
-`LikeSearch` builds LIKE predicates for user-supplied search input with explicit, driver-aware escaping. Never interpolate `%{$search}%` by hand: unescaped input lets `%` and `_` act as wildcards, hand-rolled backslash escaping matches nothing on SQLite (no default escape character), and a literal `ESCAPE '\'` is a MySQL syntax error. These helpers keep the escaping and the `ESCAPE` declaration in one place:
+`LikeSearch` builds LIKE predicates for user-supplied search input with explicit, driver-aware escaping. Never interpolate `%{$search}%` by hand: unescaped input lets `%` and `_` act as wildcards, and hand-rolled backslash escaping matches nothing on SQLite (no default escape character). These helpers keep the escaping and the `ESCAPE` declaration in one place:
 
 ```php
 use AIArmada\CommerceSupport\Support\LikeSearch;
@@ -36,7 +36,7 @@ LikeSearch::startsWith($search); // escaped%
 LikeSearch::endsWith($search);   // %escaped
 ```
 
-For raw expressions, use `LikeSearch::escape($value)` for the pattern and append `LikeSearch::escapeClause($source)` so MySQL gets `ESCAPE '\\'` while SQLite, Postgres, and SQL Server get `ESCAPE '\'`:
+For raw expressions, use `LikeSearch::escape($value)` for the pattern and append `LikeSearch::escapeClause($source)` so PostgreSQL, SQLite, and SQL Server get the correct escape literal:
 
 ```php
 $escape = LikeSearch::escapeClause($query);
