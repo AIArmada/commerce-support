@@ -147,7 +147,7 @@ final class MoneyFormatter
         return is_int($precision) ? $precision : 2;
     }
 
-    private static function normalizeCurrency(?string $currency): string
+    public static function normalizeCurrency(?string $currency): string
     {
         $normalized = mb_strtoupper(mb_trim($currency ?? ''));
 
