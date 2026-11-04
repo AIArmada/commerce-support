@@ -35,6 +35,13 @@ Commerce Support serves as the **single source of truth** for the cross-package 
 - Payment packages such as `chip`, `cashier`, and `cashier-chip` build on its contracts and money helpers
 - Root guides and AI retrieval docs explain how its tenancy model fits the wider ecosystem
 
+`FilamentPermission` optionally integrates with the core `authz` package through
+`Authz\Support\UserRoleChecker`. Role verdict caching, mutation invalidation, and
+Octane cache resets belong to `authz`. Without that package, the Spatie fallback
+checks roles on every call and does not cache authorization verdicts. This
+specific integration is allowed by the package architecture checks; other
+sibling package imports remain prohibited.
+
 ## Main contracts services or surfaces
 
 Commerce Support provides these major surfaces:
