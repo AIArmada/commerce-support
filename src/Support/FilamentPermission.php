@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Support;
 
+use AIArmada\Authz\Support\UserRoleChecker;
 use Filament\Facades\Filament;
 use Illuminate\Contracts\Auth\Access\Authorizable;
 use Illuminate\Support\Facades\Auth;
@@ -51,6 +52,10 @@ final class FilamentPermission
 
         if (! is_string($superAdminRole) || $superAdminRole === '' || ! method_exists($user, 'hasRole')) {
             return false;
+        }
+
+        if (class_exists(UserRoleChecker::class)) {
+            return UserRoleChecker::hasGlobalRole($user, $superAdminRole);
         }
 
         $registrar = app(PermissionRegistrar::class);
