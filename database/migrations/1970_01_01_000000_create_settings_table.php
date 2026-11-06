@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('group');
             $table->string('name');
             $table->boolean('locked')->default(false);
-            $table->json('payload');
+            $table->{commerce_json_column_type('commerce-support', 'jsonb')}('payload');
             $table->timestamps();
             $table->unique(['group', 'name']);
         });
