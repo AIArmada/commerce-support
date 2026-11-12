@@ -68,6 +68,7 @@ final class SupportServiceProvider extends PackageServiceProvider
                 Commands\SetupCommand::class,
                 Commands\BoostInstallCommand::class,
                 Commands\BoostUpdateCommand::class,
+                Commands\BoostIndexRulesCommand::class,
                 Commands\PublishMigrationsCommand::class,
                 Commands\InstallCommand::class,
             ]);
