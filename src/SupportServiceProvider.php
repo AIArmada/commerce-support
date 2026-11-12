@@ -202,16 +202,6 @@ final class SupportServiceProvider extends PackageServiceProvider
             );
         }
 
-        $auditsUserActorFixPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000003_fix_audits_user_actor_column_type.php.stub';
-
-        if (is_file($auditsUserActorFixPath)) {
-            ConditionalMigrationLoader::loadFileIfMissing(
-                $this,
-                $auditsUserActorFixPath,
-                'fix_audits_user_actor_column_type'
-            );
-        }
-
         $activityLogMigrationsPath = $this->resolveDependencyPath(
             ActivitylogServiceProvider::class,
             'database/migrations',
@@ -249,7 +239,7 @@ final class SupportServiceProvider extends PackageServiceProvider
         }
 
         if ($this->shouldLoadWebhookCallsMigration()) {
-            $webhookCallsMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000004_create_webhook_calls_table.php.stub';
+            $webhookCallsMigrationPath = dirname(__DIR__) . '/database/migrations/1970_01_01_000003_create_webhook_calls_table.php.stub';
 
             if (is_file($webhookCallsMigrationPath)) {
                 ConditionalMigrationLoader::loadFileIfMissing(
