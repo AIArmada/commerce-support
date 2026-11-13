@@ -114,7 +114,8 @@ final class ConditionalMigrationLoader
         $runtimeDirectory = storage_path('framework/cache/aiarmada-commerce-migrations');
 
         if (! is_dir($runtimeDirectory)) {
-            mkdir($runtimeDirectory, 0755, true);
+            // Parallel test workers and first-boot requests can race here.
+            @mkdir($runtimeDirectory, 0755, true);
         }
 
         $filename = basename($migrationPath);

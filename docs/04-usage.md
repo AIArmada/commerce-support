@@ -50,7 +50,64 @@ $summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), f
 
 `MoneyNormalizer::format()` now defaults to `MYR` when you omit the currency code. Pass an explicit code whenever a downstream package or UI contract needs a different currency.
 
-## 4. Convert currencies for display only
+## 4. Use the shared catalog contracts
+
+`Buyable` and `Priceable` are the canonical contracts for sellable catalog
+records. Implement them in the catalog package; Cart, Pricing, Checkout, and
+Filament consume them without depending on Products.
+
+```php
+use AIArmada\CommerceSupport\Contracts\Buyable;
+use AIArmada\CommerceSupport\Contracts\Priceable;
+use AIArmada\CommerceSupport\Support\BuyableLineData;
+use Illuminate\Database\Eloquent\Model;
+
+final class Variant extends Model implements Buyable, Priceable
+{
+    public function getBuyableIdentifier(): string
+    {
+        return (string) $this->getKey();
+    }
+
+    public function getBuyableCatalogIdentifier(): ?string
+    {
+        return (string) $this->product_id;
+    }
+
+    public function getBuyableName(): string
+    {
+        return (string) $this->name;
+    }
+
+    public function getBuyablePrice(): int
+    {
+        return (int) $this->price;
+    }
+
+    public function getBuyableCurrency(): string
+    {
+        return mb_strtoupper((string) $this->currency);
+    }
+
+    public function getBuyableAttributes(): array
+    {
+        return [
+            BuyableLineData::ATTRIBUTE_WEIGHT => 750,
+            BuyableLineData::ATTRIBUTE_DIMENSIONS => ['length' => 20, 'width' => 10, 'height' => 5],
+            BuyableLineData::ATTRIBUTE_REQUIRES_SHIPPING => true,
+            BuyableLineData::ATTRIBUTE_IS_TAXABLE => true,
+            BuyableLineData::ATTRIBUTE_TAX_CLASS => 'standard',
+        ];
+    }
+
+    // Implement the remaining stock and quantity-rule methods.
+}
+```
+
+`BuyableLineData::fromBuyable()` validates the sellable identity, title,
+currency, and minor-unit price before Cart writes a line.
+
+## 5. Convert currencies for display only
 
 `CurrencyConverter` folds per-currency minor-unit amounts into reporting totals. Converted totals are approximations for display and aggregation — never feed them into balances, payouts, or any other money movement.
 
@@ -68,7 +125,7 @@ $converter->totalMinor(['USD' => 10000, 'THB' => 5000], 'USD'); // null
 
 Totals refuse partial conversion: when any leg lacks a rate the whole total is null, so callers show a per-currency breakdown instead of a misleading number.
 
-## 5. Standardize Filament package navigation
+## 6. Standardize Filament package navigation
 
 When an application installs many Commerce Filament packages, register the shared navigation plugin once on the panel:
 
@@ -87,12 +144,12 @@ public function panel(Panel $panel): Panel
 
 Then configure groups and hidden entries in `config/commerce-support.php` under `filament.navigation`. This keeps menu shape in the application, while packages still register their resources, pages, routes, policies, and owner-scoped queries normally.
 
-## 6. Treat the deep docs as task guides
+## 7. Treat the deep docs as task guides
 
 Use the linked pages above as task-focused guides. `commerce-support` is intentionally broad; the
 canonical usage path here helps AI and humans decide which foundation document to read next.
 
-## 7. Console commands
+## 8. Console commands
 
 ```bash
 # Publish migrations and, with --with-config, config for detected Commerce packages
