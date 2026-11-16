@@ -18,7 +18,10 @@ use InvalidArgumentException;
  *     weight: int|null,
  *     dimensions: array{length: int, width: int, height: int}|null,
  *     requires_shipping: bool,
- *     tracks_inventory: bool
+ *     tracks_inventory: bool,
+ *     unit_price?: int,
+ *     metadata?: array<string, mixed>,
+ *     composition_path?: list<array{product_id: string, component_id: string, quantity: positive-int, unit_price?: int, metadata?: array<string, mixed>}>
  * }
  */
 final class CompositeComponents
@@ -48,6 +51,9 @@ final class CompositeComponents
             $dimensions = $entry['dimensions'] ?? null;
             $requiresShipping = $entry['requires_shipping'] ?? null;
             $tracksInventory = $entry['tracks_inventory'] ?? null;
+            $unitPrice = $entry['unit_price'] ?? null;
+            $metadata = $entry['metadata'] ?? null;
+            $compositionPath = $entry['composition_path'] ?? null;
 
             if (! is_string($productId) || $productId === ''
                 || ! array_key_exists('variant_id', $entry) || ($variantId !== null && (! is_string($variantId) || $variantId === ''))
@@ -58,7 +64,10 @@ final class CompositeComponents
                 || ! is_string($name) || $name === ''
                 || ! array_key_exists('weight', $entry) || ($weight !== null && (! is_int($weight) || $weight < 1))
                 || ! array_key_exists('dimensions', $entry)
-                || ! is_bool($requiresShipping) || ! is_bool($tracksInventory)) {
+                || ! is_bool($requiresShipping) || ! is_bool($tracksInventory)
+                || ($unitPrice !== null && (! is_int($unitPrice) || $unitPrice < 0))
+                || ($metadata !== null && ! is_array($metadata))
+                || (array_key_exists('composition_path', $entry) && (! is_array($compositionPath) || ! array_is_list($compositionPath) || $compositionPath === []))) {
                 throw new InvalidArgumentException('Invalid composite component snapshot.');
             }
 
@@ -77,7 +86,7 @@ final class CompositeComponents
                 ];
             }
 
-            $components[] = [
+            $component = [
                 'product_id' => $productId,
                 'variant_id' => $variantId,
                 'inventoryable_type' => $type,
@@ -90,6 +99,47 @@ final class CompositeComponents
                 'requires_shipping' => $requiresShipping,
                 'tracks_inventory' => $tracksInventory,
             ];
+
+            if (array_key_exists('unit_price', $entry)) {
+                $component['unit_price'] = $unitPrice;
+            }
+
+            if (array_key_exists('metadata', $entry)) {
+                $component['metadata'] = $metadata;
+            }
+
+            if (array_key_exists('composition_path', $entry)) {
+                foreach ($compositionPath as $step) {
+                    if (! is_array($step)
+                        || ! is_string($step['product_id'] ?? null) || $step['product_id'] === ''
+                        || ! is_string($step['component_id'] ?? null) || $step['component_id'] === ''
+                        || ! is_int($step['quantity'] ?? null) || $step['quantity'] < 1
+                        || (isset($step['unit_price']) && (! is_int($step['unit_price']) || $step['unit_price'] < 0))
+                        || (isset($step['metadata']) && ! is_array($step['metadata']))) {
+                        throw new InvalidArgumentException('Invalid nested composite provenance path.');
+                    }
+                }
+
+                $component['composition_path'] = array_map(static function (array $step): array {
+                    $normalized = [
+                        'product_id' => $step['product_id'],
+                        'component_id' => $step['component_id'],
+                        'quantity' => $step['quantity'],
+                    ];
+
+                    if (array_key_exists('unit_price', $step)) {
+                        $normalized['unit_price'] = $step['unit_price'];
+                    }
+
+                    if (array_key_exists('metadata', $step)) {
+                        $normalized['metadata'] = $step['metadata'];
+                    }
+
+                    return $normalized;
+                }, $compositionPath);
+            }
+
+            $components[] = $component;
         }
 
         return $components;
