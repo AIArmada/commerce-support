@@ -8,7 +8,9 @@ use InvalidArgumentException;
 
 /**
  * @phpstan-type Component array{
- *     product_id: string,
+ *     product_id: string|null,
+ *     buyable_type?: string,
+ *     buyable_id?: string,
  *     variant_id: string|null,
  *     inventoryable_type: string,
  *     inventoryable_id: string,
@@ -42,6 +44,9 @@ final class CompositeComponents
 
             $productId = $entry['product_id'] ?? null;
             $variantId = $entry['variant_id'] ?? null;
+            $buyableType = $entry['buyable_type'] ?? null;
+            $buyableId = $entry['buyable_id'] ?? null;
+            $isExternal = is_string($buyableType) && $buyableType !== '' && is_string($buyableId) && $buyableId !== '';
             $type = $entry['inventoryable_type'] ?? null;
             $id = $entry['inventoryable_id'] ?? null;
             $quantity = $entry['quantity'] ?? null;
@@ -55,10 +60,12 @@ final class CompositeComponents
             $metadata = $entry['metadata'] ?? null;
             $compositionPath = $entry['composition_path'] ?? null;
 
-            if (! is_string($productId) || $productId === ''
+            if (($isExternal && $productId !== null)
+                || (! $isExternal && (! is_string($productId) || $productId === ''))
                 || ! array_key_exists('variant_id', $entry) || ($variantId !== null && (! is_string($variantId) || $variantId === ''))
                 || ! is_string($type) || $type === ''
-                || $id !== ($variantId ?? $productId)
+                || ($isExternal && ($type !== $buyableType || $variantId !== null))
+                || $id !== ($isExternal ? $buyableId : ($variantId ?? $productId))
                 || ! is_int($quantity) || $quantity < 1
                 || ! is_string($sku) || $sku === ''
                 || ! is_string($name) || $name === ''
@@ -100,6 +107,11 @@ final class CompositeComponents
                 'tracks_inventory' => $tracksInventory,
             ];
 
+            if ($isExternal) {
+                $component['buyable_type'] = $buyableType;
+                $component['buyable_id'] = $buyableId;
+            }
+
             if (array_key_exists('unit_price', $entry)) {
                 $component['unit_price'] = $unitPrice;
             }
@@ -111,7 +123,8 @@ final class CompositeComponents
             if (array_key_exists('composition_path', $entry)) {
                 foreach ($compositionPath as $step) {
                     if (! is_array($step)
-                        || ! is_string($step['product_id'] ?? null) || $step['product_id'] === ''
+                        || ((! is_string($step['product_id'] ?? null) || $step['product_id'] === '')
+                            && (! is_string($step['buyable_type'] ?? null) || ! is_string($step['buyable_id'] ?? null)))
                         || ! is_string($step['component_id'] ?? null) || $step['component_id'] === ''
                         || ! is_int($step['quantity'] ?? null) || $step['quantity'] < 1
                         || (isset($step['unit_price']) && (! is_int($step['unit_price']) || $step['unit_price'] < 0))
@@ -122,10 +135,19 @@ final class CompositeComponents
 
                 $component['composition_path'] = array_map(static function (array $step): array {
                     $normalized = [
-                        'product_id' => $step['product_id'],
+                        'product_id' => $step['product_id'] ?? null,
                         'component_id' => $step['component_id'],
                         'quantity' => $step['quantity'],
                     ];
+
+                    if (isset($step['variant_id'])) {
+                        $normalized['variant_id'] = $step['variant_id'];
+                    }
+
+                    if (isset($step['buyable_type'], $step['buyable_id'])) {
+                        $normalized['buyable_type'] = $step['buyable_type'];
+                        $normalized['buyable_id'] = $step['buyable_id'];
+                    }
 
                     if (array_key_exists('unit_price', $step)) {
                         $normalized['unit_price'] = $step['unit_price'];
