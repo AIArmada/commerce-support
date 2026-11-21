@@ -12,6 +12,7 @@ Build feature-owned, agent-friendly Laravel applications using Laravel's native 
 - Initializing a fresh Laravel 11 / 12 / 13 project with Laravel Dune.
 - Adding a new Feature, Action, EntryPoint, Extension, Api contract, or Host integration in an already-adopted app.
 - For converting an existing conventional Laravel app, use the **`laravel-dune-convert`** skill instead.
+- For building or converting a reusable Laravel Composer package (`src/` + Spatie skeleton), use the **`laravel-dune-package`** skill instead.
 
 ## Bootstrap a fresh Laravel app
 

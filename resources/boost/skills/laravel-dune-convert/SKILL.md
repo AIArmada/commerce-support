@@ -5,7 +5,7 @@ description: Convert an existing conventional or partly modular Laravel applicat
 
 # Convert an Existing Laravel App to Laravel Dune
 
-Migrate an existing Laravel 11 / 12 / 13 codebase (brownfield or vibe-coded greenfield) into **Laravel Dune** without breaking routes, middleware order, authorization, tenancy, transactions, or queues. Read [references/migration-playbook.md](references/migration-playbook.md) for Livewire, Filament, Inertia, Observers, Policies, and Auth recipes.
+Migrate an existing Laravel 11 / 12 / 13 codebase (brownfield or vibe-coded greenfield) into **Laravel Dune** without breaking routes, middleware order, authorization, tenancy, transactions, or queues. Read [references/migration-playbook.md](references/migration-playbook.md) for Livewire, Filament, Inertia, Observers, Policies, and Auth recipes. (Converting a reusable Composer package on `src/` instead of an app? Use **`laravel-dune-package`** in Convert mode.)
 
 ## Phase 0 — Establish a Verified Baseline
 

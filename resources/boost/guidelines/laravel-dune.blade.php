@@ -63,6 +63,6 @@ final readonly class CancelOrderController
 - Consult `.ai/rules/index.md` before planning or editing any file.
 - Use Boost `search-docs` for version-accurate Laravel/ecosystem APIs and `database-schema` / `last-error` / `browser-logs` for evidence-backed verification.
 - Record durable judgment-only rules via Boost's `record-rule` MCP tool (never edit `.ai/rules/index.md` inconsistently by hand).
-- Activate on-demand skills when relevant: `laravel-dune` (feature development & bootstrap), `laravel-dune-convert` (legacy migration), `laravel-dune-verify` (runtime verification & Feature Map), `laravel-dune-correct` (turning repeated corrections into mechanical checks).
+- Use `laravel-dune` for application features and bootstrap, `laravel-dune-convert` for application migration, `laravel-dune-package` for building or converting focused and modular Composer packages, `laravel-dune-verify` for runtime proof and Feature Maps, and `laravel-dune-correct` for recurring mistakes.
 - Run affected Pest/PHPUnit tests and the application's Dune architecture checks once the scaffold is installed.
 @endif

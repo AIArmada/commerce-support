@@ -29,7 +29,8 @@ step is required:
   `@scoped` blocks so Boost extracts them into `.ai/rules/boost/` when
   `boost.rules.scoped_guidelines` is enabled, and otherwise renders them inline.
 - `resources/boost/skills/laravel-dune`, `laravel-dune-convert`, `laravel-dune-correct`,
-  `laravel-dune-verify` — the four Dune agent skills.
+  `laravel-dune-verify`, and `laravel-dune-package` — the five Dune agent skills.
+  The package skill includes scaffolding and inventory tools for focused and modular Composer packages.
 
 To opt a standalone Laravel application into Dune, add this package to the application's
 `boost.json` `packages` array. The Dune conventions apply to application-owned features.

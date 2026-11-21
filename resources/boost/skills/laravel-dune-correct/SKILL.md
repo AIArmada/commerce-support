@@ -9,15 +9,15 @@ Whenever you correct coding agents for the same mistake twice, stop fixing it in
 
 ## Part A — Find Mistake Classes (Rule of Two)
 
-1. Inspect recent git commits, reverts, PR review comments, `.ai/rules/*.md`, and workaround comments in `app/`.
+1. Inspect recent git commits, reverts, PR review comments, `.ai/rules/*.md`, and workaround comments in `app/` (or `src/` in Composer packages).
 2. Group failures into mistake classes. **A class counts once it has happened twice.**
 
 ## Part B — Escalate to the Highest Level That Works
 
 Fix the highest-frequency classes one atomic commit each:
 
-1. **Level 1 · Architecture (`app/Platform/`, `feature.json`, `Api/`, `app/Host/`):** Give state one owner, give each task one supported way, hide internals, replace hand-synced lists with `ExtensionRegistry`, delete legacy paths agents would copy.
-2. **Level 2 · Types, AST & Static Analysis (`tools/architecture-check.php`, `OwnedWriteRule.php`, PHPStan, Pest `arch()`):** Make the bad state unrepresentable with branded/readonly types or add a mechanical check whose error message **explicitly names the supported file, Action, or contract to use instead**. If legacy instances are widespread, enforce in `--diff-base=main` ratchet mode while sweeping old code.
+1. **Level 1 · Architecture (`app/Platform/`, `feature.json`, `Api/`, `app/Host/` — or `src/Contracts/`, `src/Drivers/`, `src/Actions/` in packages):** Give state one owner, give each task one supported way, hide internals, replace hand-synced lists with `ExtensionRegistry`, delete legacy paths agents would copy.
+2. **Level 2 · Types, AST & Static Analysis (`tools/architecture-check.php` / `tools/package-check.php`, `OwnedWriteRule.php`, PHPStan, Pest `arch()`):** Make the bad state unrepresentable with branded/readonly types or add a mechanical check whose error message **explicitly names the supported file, Action, or contract to use instead**. If legacy instances are widespread, enforce in `--diff-base=main` ratchet mode while sweeping old code.
 3. **Level 3 · Behavioral Pest Test:** Assert observable behavior (delete tests pinned to internal helper calls or that still pass when behavior breaks).
 4. **Level 4 · Boost Project Rule (`record-rule` MCP tool — LAST RESORT):** Only for genuine judgment calls that cannot be checked mechanically. Always call Laravel Boost's `record-rule` MCP tool (so `.ai/rules/index.md` stays synchronized).
 

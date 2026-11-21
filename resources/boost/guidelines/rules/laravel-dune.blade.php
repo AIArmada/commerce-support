@@ -1,7 +1,7 @@
 @if (\Composer\InstalledVersions::getRootPackage()['name'] !== 'aiarmada/commerce')
 # Laravel Dune Path-Scoped Rules
 
-These rules apply to application-owned code in apps that adopt Laravel Dune. Boost extracts each `@scoped` block into `.ai/rules/boost/` when scoped guidelines are enabled.
+These rules cover Dune application code and Composer package development. Boost extracts each `@scoped` block into `.ai/rules/boost/` when scoped guidelines are enabled.
 
 @scoped(['app/Platform/**'])
 
@@ -111,6 +111,20 @@ Delete all narrating comments, commented-out code, workaround justifications, an
 | `sleep()` / `env()` / `Model::unguard()` / `@phpstan-ignore` | `php tools/architecture-check.php` (`banned-footgun`, `no-suppression`) | L2 AST |
 | Narrative / workaround comment slop | `php tools/architecture-check.php` (`comment-hygiene`) + `laravel-dune-correct` | L2/L4 |
 | Behavioral regressions & broken routes | `verify/feature-map/` + Pest feature & arch tests + Boost MCP | L3 Verify |
+
+@endscoped
+
+@scoped(['src/**'])
+
+# Composer Package Boundaries
+
+Apply these rules when developing a reusable Laravel Composer package with the `laravel-dune-package` skill.
+
+- Use the focused layout for a single capability. Use modular features with their own state ownership when the package contains independent capabilities.
+- Keep host application classes out of package source. Resolve host-specific models and implementations through configuration or public contracts.
+- Leave framework-wide settings such as Eloquent strictness, mass assignment, and date factories under host control.
+- Keep external SDK calls in drivers, expose typed contracts, and verify package registration and driver swaps in a booted Laravel test host.
+- Inventory public integration surfaces before converting an existing package. Verify downstream compatibility for providers, facades, configuration, commands, and publishable assets.
 
 @endscoped
 @endif
