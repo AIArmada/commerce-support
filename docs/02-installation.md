@@ -18,6 +18,32 @@ composer require aiarmada/commerce-support
 
 The service provider auto-registers via Laravel package discovery.
 
+## AI Guidelines and Skills
+
+This package ships Laravel Dune guidelines and skills in `resources/boost/`. Boost discovers them
+from the Composer package metadata when it runs `boost:install` or `boost:update`, so no publishing
+step is required:
+
+- `resources/boost/guidelines/laravel-dune.blade.php` — the Dune architecture guideline.
+- `resources/boost/guidelines/rules/laravel-dune.blade.php` — path-scoped Dune rules, shipped as
+  `@scoped` blocks so Boost extracts them into `.ai/rules/boost/` when
+  `boost.rules.scoped_guidelines` is enabled, and otherwise renders them inline.
+- `resources/boost/skills/laravel-dune`, `laravel-dune-convert`, `laravel-dune-correct`,
+  `laravel-dune-verify` — the four Dune agent skills.
+
+To opt a standalone Laravel application into Dune, add this package to the application's
+`boost.json` `packages` array. The Dune conventions apply to application-owned features.
+Commerce package development uses the monorepo's root Dune guidance. Boost skips the standalone
+guidelines and scoped rules when the Composer root package is `aiarmada/commerce`.
+
+```json
+{
+    "packages": [
+        "aiarmada/commerce-support"
+    ]
+}
+```
+
 ## Publish Configuration
 
 ```bash
