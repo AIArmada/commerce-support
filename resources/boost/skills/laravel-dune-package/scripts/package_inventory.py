@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only inventory & SemVer public-surface scanner for Laravel Composer packages (src/).
+"""Read-only inventory & public-surface scanner for Laravel Composer packages.
 
 Never boots Orchestra Testbench or Laravel. Emits JSON covering PSR-4 mapping,
 extra.laravel providers/aliases, config keys, Facades, Commands, migrations/stubs,
@@ -10,6 +10,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 HOTSPOTS = {
@@ -28,7 +29,31 @@ HOTSPOTS = {
 SIGNATURE_RE = re.compile(r"\$signature\s*=\s*['\"]([^'\"]+)['\"]")
 
 
-def scan_package(root: Path) -> dict:
+def detect_source_dir(root: Path, psr4: dict, requested: Optional[str]) -> str:
+    if requested:
+        return requested.strip().strip("/")
+    arch_cfg = root / "tools" / "architecture.json"
+    if arch_cfg.is_file():
+        try:
+            cfg = json.loads(arch_cfg.read_text(encoding="utf-8"))
+            if isinstance(cfg.get("sourceDir"), str) and cfg["sourceDir"].strip():
+                return cfg["sourceDir"].strip().strip("/")
+        except (OSError, json.JSONDecodeError):
+            pass
+    mapped_dirs = []
+    for mapped in psr4.values():
+        entries = mapped if isinstance(mapped, list) else [mapped]
+        for entry in entries:
+            if isinstance(entry, str) and entry.strip():
+                mapped_dirs.append(entry.strip().strip("/"))
+    if "src" in mapped_dirs:
+        return "src"
+    if mapped_dirs:
+        return mapped_dirs[0]
+    return "src"
+
+
+def scan_package(root: Path, requested_source_dir: Optional[str] = None) -> dict:
     composer_path = root / "composer.json"
     if not composer_path.is_file():
         raise ValueError(f"Missing composer.json at {root}")
@@ -46,7 +71,8 @@ def scan_package(root: Path) -> dict:
     psr4 = composer.get("autoload", {}).get("psr-4", {})
     extra_laravel = composer.get("extra", {}).get("laravel", {})
 
-    src_dir = root / "src"
+    source_dir_name = detect_source_dir(root, psr4 if isinstance(psr4, dict) else {}, requested_source_dir)
+    src_dir = root / source_dir_name
     src_files = sorted(p.relative_to(root).as_posix() for p in src_dir.rglob("*.php") if not p.is_symlink()) if src_dir.is_dir() else []
 
     facades = [f for f in src_files if "/Facades/" in f]
@@ -81,6 +107,7 @@ def scan_package(root: Path) -> dict:
         "schema": 1,
         "package_name": composer.get("name"),
         "php_constraint": req.get("php"),
+        "source_dir": source_dir_name,
         "psr4": psr4,
         "uses_spatie_package_tools": "spatie/laravel-package-tools" in req or "spatie/laravel-package-tools" in locked,
         "uses_orchestra_testbench": "orchestra/testbench" in req_dev or "orchestra/testbench" in locked,
@@ -105,8 +132,9 @@ def scan_package(root: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True)
+    parser.add_argument("--source-dir", help="PSR-4 source directory override (auto-detected by default)")
     args = parser.parse_args()
-    print(json.dumps(scan_package(Path(args.root).resolve()), indent=2))
+    print(json.dumps(scan_package(Path(args.root).resolve(), args.source_dir), indent=2))
     return 0
 
 

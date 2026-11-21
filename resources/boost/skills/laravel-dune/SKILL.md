@@ -16,7 +16,7 @@ Build feature-owned, agent-friendly Laravel applications using Laravel's native 
 
 ## Bootstrap a fresh Laravel app
 
-Resolve `$SKILL_DIR` to `.ai/skills/laravel-architecture` (or your agent's installed skill copy) and `$PROJECT_ROOT` to the Laravel root. Preview first, then apply:
+Resolve `$SKILL_DIR` to `.ai/skills/laravel-dune` (or your agent's installed skill copy) and `$PROJECT_ROOT` to the Laravel root. Preview first, then apply:
 
 ```sh
 python3 "$SKILL_DIR/scripts/arch_scaffold.py" init --root "$PROJECT_ROOT"

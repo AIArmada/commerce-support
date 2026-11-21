@@ -1,12 +1,12 @@
 parameters:
     customRulesetUsed: true
     paths:
-        - ../src
+        - ../__SOURCE_DIR__
         - ../config
     excludePaths:
         analyse:
             - ../database/migrations/*
-            - ../src/Features/*/Database/Migrations/*
+            - ../__SOURCE_DIR__/Features/*/Database/Migrations/*
     tmpDir: ../build/phpstan-arch
 
 services:

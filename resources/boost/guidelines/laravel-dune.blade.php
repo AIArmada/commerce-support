@@ -1,7 +1,7 @@
 @if (\Composer\InstalledVersions::getRootPackage()['name'] !== 'aiarmada/commerce')
-## Laravel Dune for Consumer Applications
+## Laravel Dune
 
-These conventions apply to application-owned features that adopt Laravel Dune. Installed Commerce packages retain their own documented models, contracts, and verification workflow.
+This application follows **Laravel Dune**, a deterministic, feature-owned architecture built on Laravel's native container, Eloquent, transactions, queues, and Boost MCP tooling.
 
 Core rule: **Make the locally obvious change the globally correct change. Unsafe shortcuts fail mechanically with errors naming the supported owner.**
 
@@ -56,6 +56,7 @@ final readonly class CancelOrderController
 - **No imperative timing hacks:** Never call `sleep()`, `usleep()`, `time_nanosleep()`, or `Sleep::sleep()` as synchronization workarounds.
 - **No `env()` outside `config/`:** Always read via `config()`.
 - **No `Model::unguard()` or mass-assignment bypasses** and **no inline `@phpstan-ignore` / `phpcs:ignore` suppressions**.
+- **No backward-compatibility shims, legacy wrappers, or leftover dead files:** Update callers directly and delete superseded classes, aliases, routes, observers, and unused config keys in the same change.
 - **No narrative comments (~99% ban):** Keep only legal headers, verified external vendor quirks, pure formatter ignores, public API contract docs, and RFC/issue links. Encode `DO NOT REMOVE` invariants as types, lints, or tests.
 
 ### Boost MCP & Skill Workflow
@@ -63,6 +64,6 @@ final readonly class CancelOrderController
 - Consult `.ai/rules/index.md` before planning or editing any file.
 - Use Boost `search-docs` for version-accurate Laravel/ecosystem APIs and `database-schema` / `last-error` / `browser-logs` for evidence-backed verification.
 - Record durable judgment-only rules via Boost's `record-rule` MCP tool (never edit `.ai/rules/index.md` inconsistently by hand).
-- Use `laravel-dune` for application features and bootstrap, `laravel-dune-convert` for application migration, `laravel-dune-package` for building or converting focused and modular Composer packages, `laravel-dune-verify` for runtime proof and Feature Maps, and `laravel-dune-correct` for recurring mistakes.
-- Run affected Pest/PHPUnit tests and the application's Dune architecture checks once the scaffold is installed.
+- Activate on-demand skills when relevant: `laravel-dune` (app feature development & bootstrap), `laravel-dune-convert` (legacy app migration), `laravel-dune-package` (Laravel Composer packages under `src/`, both focused single-capability and modular multi-feature, fresh or convert), `laravel-dune-verify` (runtime verification & Feature Map), `laravel-dune-correct` (turning repeated corrections into mechanical checks).
+- Before declaring done, run `composer arch:check` plus affected Pest/PHPUnit tests—**"it compiles" is not evidence.**
 @endif

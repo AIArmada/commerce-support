@@ -8,6 +8,35 @@ use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
 
+$rawArgs = array_slice($_SERVER['argv'] ?? [], 1);
+$expectValue = false;
+$unknownOptions = [];
+foreach ($rawArgs as $arg) {
+    if ($expectValue) {
+        $expectValue = false;
+        continue;
+    }
+    if ($arg === '--json') {
+        continue;
+    }
+    if ($arg === '--root' || $arg === '--diff-base') {
+        $expectValue = true;
+        continue;
+    }
+    if (str_starts_with($arg, '--root=') || str_starts_with($arg, '--diff-base=')) {
+        continue;
+    }
+    $unknownOptions[] = $arg;
+}
+if ($expectValue) {
+    fwrite(STDERR, 'Missing value for option: '.end($rawArgs)."\n");
+    exit(2);
+}
+if ($unknownOptions !== []) {
+    fwrite(STDERR, 'Unknown option(s): '.implode(' ', $unknownOptions)."\nAllowed: --root=<path>, --diff-base=<ref>, --json\n");
+    exit(2);
+}
+
 $options = getopt('', ['root:', 'json', 'diff-base:']);
 $root = realpath($options['root'] ?? dirname(__DIR__));
 if ($root === false || ! is_file($root.'/vendor/autoload.php')) {
@@ -121,7 +150,7 @@ try {
         $srcRel = $inSrc ? substr($relative, strlen($sourceDir) + 1) : '';
         $isConfigFile = str_starts_with($relative, 'config/');
         $isPlatform = $inSrc && str_starts_with($srcRel, 'Platform/');
-        $isDriver = $inSrc && (str_starts_with($srcRel, 'Drivers/') || str_starts_with($srcRel, 'Host/'));
+        $isDriver = $inSrc && str_starts_with($srcRel, 'Drivers/');
         $isContractOrData = $inSrc && (str_starts_with($srcRel, 'Contracts/') || str_starts_with($srcRel, 'Data/'));
         $sourceFeature = ($layout === 'modular' && $inSrc && preg_match('~^Features/([^/]+)/~', $srcRel, $m)) ? $m[1] : null;
         $isFeatureApi = $sourceFeature !== null && str_contains($srcRel, '/Api/');
@@ -186,6 +215,7 @@ try {
 
         $checkDependency = static function (string $target, int $line) use (
             $pkgPrefix,
+            $sourceDir,
             $layout,
             $sourceFeature,
             $isPlatform,
@@ -236,13 +266,13 @@ try {
             }
 
             if ($inSrc && ! $isDriver && ! str_ends_with($srcRel, 'ServiceProvider.php')
-                && (str_starts_with($target, $pkgPrefix.'Drivers\\') || str_starts_with($target, $pkgPrefix.'Host\\'))) {
+                && str_starts_with($target, $pkgPrefix.'Drivers\\')) {
                 $report(
                     'driver-direct',
                     $relative,
                     $line,
                     $target,
-                    "Do not import concrete Drivers/Host classes directly. Inject the interface from {$pkgPrefix}Contracts\\ and bind it in the ServiceProvider."
+                    "Do not import concrete Drivers classes directly. Inject the interface from {$pkgPrefix}Contracts\\ and bind it in the ServiceProvider."
                 );
             }
 
@@ -255,17 +285,17 @@ try {
                         $relative,
                         $line,
                         $target,
-                        "Referenced feature '{$targetFeature}' has no valid src/Features/{$targetFeature}/feature.json manifest."
+                        "Referenced feature '{$targetFeature}' has no valid {$sourceDir}/Features/{$targetFeature}/feature.json manifest."
                     );
                 }
 
-                if ($isPlatform && ($targetFeature !== null || str_starts_with($target, $pkgPrefix.'Drivers\\') || str_starts_with($target, $pkgPrefix.'Host\\'))) {
+                if ($isPlatform && ($targetFeature !== null || str_starts_with($target, $pkgPrefix.'Drivers\\'))) {
                     $report(
                         'layer-direction',
                         $relative,
                         $line,
                         $target,
-                        'Package Platform core (src/Platform/) must NEVER import concrete Features or Drivers.'
+                        "Package Platform core ({$sourceDir}/Platform/) must NEVER import concrete Features or Drivers."
                     );
                 } elseif ($isDriver && $targetFeature !== null) {
                     $report(
@@ -273,7 +303,7 @@ try {
                         $relative,
                         $line,
                         $target,
-                        'Drivers/Host must NEVER import concrete Features. Communicate via src/Contracts/ and src/Data/.'
+                        "Drivers must NEVER import concrete Features. Communicate via {$sourceDir}/Contracts/ and {$sourceDir}/Data/."
                     );
                 } elseif ($targetFeature !== null
                     && $targetFeature !== $sourceFeature

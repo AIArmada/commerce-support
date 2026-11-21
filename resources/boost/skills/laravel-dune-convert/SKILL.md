@@ -9,6 +9,8 @@ Migrate an existing Laravel 11 / 12 / 13 codebase (brownfield or vibe-coded gree
 
 ## Phase 0 — Establish a Verified Baseline
 
+Resolve `$CONVERT_SKILL_DIR` to `.ai/skills/laravel-dune-convert`, `$ARCH_SKILL_DIR` to `.ai/skills/laravel-dune`, and `$PROJECT_ROOT` to the Laravel app root.
+
 1. Use **Laravel Boost MCP** first (`application-info`, `database-schema`, `database-connections`) and read `.ai/rules/index.md`. Use `search-docs` for any version-specific Laravel/Livewire/Filament/Inertia API.
 2. Run the read-only inventory and ownership mapper (neither boots Laravel):
    ```sh

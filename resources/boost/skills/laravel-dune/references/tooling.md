@@ -34,6 +34,7 @@ Also keep your normal `phpstan.neon` analysis (level 6–9) running in CI alongs
 During incremental migration of an existing Laravel app:
 - `php tools/architecture-check.php --diff-base=main` enforces **all** structural & anti-slop checks on every file inside `app/Platform/`, `app/Features/`, `app/Host/`, and `app/Shared/`, while applying anti-slop rules (`sleep()`, `env()`, `Model::unguard()`, suppressions, comment hygiene) **only to git-modified legacy files**—stopping new slop without requiring a giant big-bang rewrite on Day 1.
 - Once migration finishes, switch CI to full `php tools/architecture-check.php`.
+- **Custom checker warning:** `arch:boundaries:diff` requires a checker that implements `--diff-base` ratchet mode. The starter `tools/architecture-check.php` explicitly rejects unknown CLI flags with exit code `2`; if you maintain a custom checker without ratchet support, omit `arch:boundaries:diff` rather than passing a flag that PHP's `getopt()` would silently discard.
 
 ## Exception Governance (`tools/architecture.json`)
 

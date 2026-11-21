@@ -9,6 +9,35 @@ use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
 
+$rawArgs = array_slice($_SERVER['argv'] ?? [], 1);
+$expectValue = false;
+$unknownOptions = [];
+foreach ($rawArgs as $arg) {
+    if ($expectValue) {
+        $expectValue = false;
+        continue;
+    }
+    if ($arg === '--json') {
+        continue;
+    }
+    if ($arg === '--root' || $arg === '--diff-base') {
+        $expectValue = true;
+        continue;
+    }
+    if (str_starts_with($arg, '--root=') || str_starts_with($arg, '--diff-base=')) {
+        continue;
+    }
+    $unknownOptions[] = $arg;
+}
+if ($expectValue) {
+    fwrite(STDERR, 'Missing value for option: '.end($rawArgs)."\n");
+    exit(2);
+}
+if ($unknownOptions !== []) {
+    fwrite(STDERR, 'Unknown option(s): '.implode(' ', $unknownOptions)."\nAllowed: --root=<path>, --diff-base=<ref>, --json\n");
+    exit(2);
+}
+
 $options = getopt('', ['root:', 'json', 'diff-base:']);
 $root = realpath($options['root'] ?? dirname(__DIR__));
 if ($root === false || ! is_file($root.'/vendor/autoload.php')) {

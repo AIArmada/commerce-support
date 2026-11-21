@@ -92,3 +92,7 @@ Merge into the package’s `composer.json`:
 ```
 
 **PHPStan `extension-installer` note:** Spatie’s skeleton includes `phpstan/extension-installer`, which loads `larastan/larastan` automatically. Keep `tools/package-phpstan.neon` free of manual `includes: [../vendor/larastan/larastan/extension.neon]`. If a package does *not* install `phpstan/extension-installer`, add that include line to `tools/package-phpstan.neon`.
+
+**Custom PSR-4 source directory & custom checker notes:**
+- If your package maps its PSR-4 root to a directory other than `src/` (for example `lib/`), pass `--source-dir lib` to `pkg_scaffold.py init`; it persists `"sourceDir": "lib"` in `tools/architecture.json`, updates `tools/package-phpstan.neon`, and scopes `.ai/rules/package-architecture.md` accordingly.
+- `arch:boundaries:diff` requires a checker that implements `--diff-base` ratchet mode. The starter `tools/package-check.php` explicitly rejects unknown CLI flags with exit code `2`; if you maintain a custom checker without ratchet support, omit `arch:boundaries:diff` instead of passing a flag that PHP’s `getopt()` would silently ignore.
