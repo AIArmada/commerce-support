@@ -252,22 +252,49 @@ final class PublicHttpUrlGuard
 
     private function isPublicIp(string $ip): bool
     {
+        return self::isPublicIpAddress($ip);
+    }
+
+    public static function isPublicIpAddress(string $ip): bool
+    {
+        $normalized = mb_trim($ip, '[]');
+
         if (filter_var(
-            $ip,
+            $normalized,
             FILTER_VALIDATE_IP,
             FILTER_FLAG_GLOBAL_RANGE | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
         ) === false) {
             return false;
         }
 
-        $packed = inet_pton($ip);
+        if (filter_var($normalized, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+            $long = ip2long($normalized);
 
-        if (! is_string($packed)) {
+            if ($long === false) {
+                return false;
+            }
+
+            // Carrier-Grade NAT 100.64.0.0/10 and 0.0.0.0/8 ("this network").
+            if (($long & 0xFFC00000) === 0x64400000 || ($long & 0xFF000000) === 0x00000000) {
+                return false;
+            }
+
+            $packedV4 = inet_pton($normalized);
+
+            return is_string($packedV4) && mb_strlen($packedV4, '8bit') === 4 && ord($packedV4[0]) < 224;
+        }
+
+        $packed = inet_pton($normalized);
+
+        if (! is_string($packed) || mb_strlen($packed, '8bit') !== 16) {
             return false;
         }
 
-        if (mb_strlen($packed) === 4) {
-            return ord($packed[0]) < 224;
+        // Unwrap IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) against IPv4 rules.
+        if (str_starts_with($packed, str_repeat("\x00", 10) . "\xff\xff")) {
+            $ipv4 = inet_ntop(mb_substr($packed, 12, null, '8bit'));
+
+            return is_string($ipv4) && self::isPublicIpAddress($ipv4);
         }
 
         if (ord($packed[0]) === 0xFF) {
@@ -279,10 +306,10 @@ final class PublicHttpUrlGuard
 
         return ! (
             is_string($wellKnownNat64)
-            && mb_substr($packed, 0, 12) === mb_substr($wellKnownNat64, 0, 12)
+            && mb_substr($packed, 0, 12, '8bit') === mb_substr($wellKnownNat64, 0, 12, '8bit')
         ) && ! (
             is_string($localNat64)
-            && mb_substr($packed, 0, 6) === mb_substr($localNat64, 0, 6)
+            && mb_substr($packed, 0, 6, '8bit') === mb_substr($localNat64, 0, 6, '8bit')
         );
     }
 }
