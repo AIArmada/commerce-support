@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Support;
 
 use AIArmada\CommerceSupport\Contracts\OwnerScopeIdentifiable;
+use BadMethodCallException;
 use Carbon\CarbonImmutable;
 use DateInterval;
 use DateTimeInterface;
+use Illuminate\Cache\Repository;
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
+use stdClass;
 use Throwable;
 
 /**
@@ -89,9 +93,11 @@ final class OwnerCache
      */
     public static function get(Model | OwnerScopeIdentifiable | null $owner, string $logicalKey, mixed $default = null): mixed
     {
-        return self::repository($owner)->get(
-            self::key($owner, $logicalKey),
-            $default
+        return self::unwrap(
+            self::repository($owner)->get(
+                self::key($owner, $logicalKey),
+                $default
+            )
         );
     }
 
@@ -102,7 +108,7 @@ final class OwnerCache
     {
         self::repository($owner)->put(
             self::key($owner, $logicalKey),
-            $value,
+            self::wrap($value),
             $ttl
         );
     }
@@ -112,6 +118,8 @@ final class OwnerCache
      *
      * Rebuilds are guarded by an atomic lock so concurrent misses on an
      * expensive callback produce one rebuild instead of a thundering herd.
+     * A legitimately cached `null` is returned as-is; drivers without lock
+     * support degrade to an unguarded rebuild.
      *
      * @template T
      *
@@ -123,23 +131,37 @@ final class OwnerCache
         $repository = self::repository($owner);
         $key = self::key($owner, $logicalKey);
 
-        $cached = $repository->get($key);
+        $missed = self::missedSentinel();
 
-        if ($cached !== null) {
-            return $cached;
+        $cached = $repository->get($key, $missed);
+
+        if ($cached !== $missed) {
+            return self::unwrap($cached);
+        }
+
+        if (! self::supportsLocks($repository)) {
+            return self::rememberWithoutLock($repository, $key, $ttl, $callback);
         }
 
         try {
-            return Cache::lock($key . ':lock', 10)->block(5, function () use ($repository, $key, $ttl, $callback): mixed {
-                $cached = $repository->get($key);
+            $lock = $repository->lock($key . ':lock', 10);
+        } catch (BadMethodCallException) {
+            return self::rememberWithoutLock($repository, $key, $ttl, $callback);
+        }
 
-                if ($cached !== null) {
-                    return $cached;
+        try {
+            return $lock->block(5, function () use ($repository, $key, $ttl, $callback): mixed {
+                $missed = self::missedSentinel();
+
+                $cached = $repository->get($key, $missed);
+
+                if ($cached !== $missed) {
+                    return self::unwrap($cached);
                 }
 
                 $value = $callback();
 
-                $repository->put($key, $value, $ttl);
+                $repository->put($key, self::wrap($value), $ttl);
 
                 return $value;
             });
@@ -173,9 +195,20 @@ final class OwnerCache
             // Driver doesn't support tagging; the version bump below still invalidates.
         }
 
+        $store = Cache::store();
         $versionKey = self::versionKey($ownerKey);
 
-        Cache::store()->forever($versionKey, (int) Cache::store()->get($versionKey, 1) + 1);
+        $store->add($versionKey, 1);
+
+        try {
+            $incremented = $store->increment($versionKey);
+        } catch (Throwable) {
+            $incremented = false;
+        }
+
+        if ($incremented === false) {
+            $store->forever($versionKey, (int) $store->get($versionKey, 1) + 1);
+        }
     }
 
     private static function repository(Model | OwnerScopeIdentifiable | null $owner): mixed
@@ -187,6 +220,48 @@ final class OwnerCache
         } catch (Throwable) {
             return Cache::store();
         }
+    }
+
+    /**
+     * Unique in-process sentinel used to detect a cache miss.
+     */
+    private static function missedSentinel(): stdClass
+    {
+        return new stdClass;
+    }
+
+    private static function wrap(mixed $value): mixed
+    {
+        return $value === null ? new OwnerCacheNull : $value;
+    }
+
+    private static function unwrap(mixed $value): mixed
+    {
+        return $value instanceof OwnerCacheNull ? null : $value;
+    }
+
+    private static function supportsLocks(mixed $repository): bool
+    {
+        try {
+            $store = $repository->getStore();
+        } catch (Throwable) {
+            return false;
+        }
+
+        while ($store instanceof Repository) {
+            $store = $store->getStore();
+        }
+
+        return $store instanceof LockProvider;
+    }
+
+    private static function rememberWithoutLock(mixed $repository, string $key, DateTimeInterface | DateInterval | int | null $ttl, callable $callback): mixed
+    {
+        $value = $callback();
+
+        $repository->put($key, self::wrap($value), $ttl);
+
+        return $value;
     }
 
     private static function tag(string $ownerKey): string

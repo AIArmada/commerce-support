@@ -65,16 +65,19 @@ $product = ResolveOwnedModelOrFailAction::run(
 ```php
 use AIArmada\CommerceSupport\Actions\ResolveOwnerJobContextAction;
 
-// Automatically detects job properties via reflection:
+// Detection order (explicit payload always wins):
 // - Implements OwnerScopedJob contract path
-// - Parses ownerType/ownerId payload fields
-// - Validates consistency
+// - Explicit ownerType/ownerId/ownerIsGlobal public properties
+// - A model property exposing getOwner()
+// - A model property with a non-null owner tuple
+// - An OwnerScopeIdentifiable property
 $context = ResolveOwnerJobContextAction::run($job);
 
 // Result:
 // OwnerJobContext {
-//   owner: Owner|null,
-//   includeGlobal: bool,
+//   ownerType: string|null,
+//   ownerId: string|int|null,
+//   ownerIsGlobal: bool,
 // }
 ```
 
@@ -284,9 +287,9 @@ $allResults = $runner->forEach(function ($owner) {
 **Features:**
 - Iterates owners via distinct owner_type/owner_id from the model table
 - Wraps each iteration in `OwnerContext::withOwner()`
-- Pass `null` for `ownerConfig` to always iterate every owner tuple
-- When `include_global` resolves truthy, iteration runs under `OwnerScopeOverride::withoutIncludeGlobal()` so per-owner work never picks up global rows
-- `run()` returns reduced results (sum for ints, merged sums for arrays, otherwise the first non-null result)
+- Pass `null` for `ownerConfig` to fall back to the model's `ownerScopeConfig()` for the enabled state and include-global suppression
+- When `include_global` resolves truthy (from `ownerConfig` or the model config), iteration runs under `OwnerScopeOverride::withoutIncludeGlobal()` so per-owner work never picks up global rows
+- `run()` returns reduced results (sum for ints, merged sums for numeric array values, otherwise the first non-null result)
 - `forEach()` returns a Collection of all results
 
 ---

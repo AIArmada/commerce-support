@@ -34,6 +34,10 @@ use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 use Laravel\Octane\Events\RequestReceived;
 use Laravel\Octane\Events\RequestTerminated;
+use Laravel\Octane\Events\TaskReceived;
+use Laravel\Octane\Events\TaskTerminated;
+use Laravel\Octane\Events\TickReceived;
+use Laravel\Octane\Events\TickTerminated;
 use OwenIt\Auditing\AuditingServiceProvider;
 use ReflectionClass;
 use RuntimeException;
@@ -112,6 +116,22 @@ final class SupportServiceProvider extends PackageServiceProvider
 
         if (class_exists(RequestTerminated::class)) {
             $this->app['events']->listen(RequestTerminated::class, $flush);
+        }
+
+        if (class_exists(TaskReceived::class)) {
+            $this->app['events']->listen(TaskReceived::class, $flush);
+        }
+
+        if (class_exists(TaskTerminated::class)) {
+            $this->app['events']->listen(TaskTerminated::class, $flush);
+        }
+
+        if (class_exists(TickReceived::class)) {
+            $this->app['events']->listen(TickReceived::class, $flush);
+        }
+
+        if (class_exists(TickTerminated::class)) {
+            $this->app['events']->listen(TickTerminated::class, $flush);
         }
     }
 

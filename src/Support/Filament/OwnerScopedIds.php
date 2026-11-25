@@ -8,6 +8,7 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerQuery;
 use AIArmada\CommerceSupport\Support\OwnerScope;
 use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
+use AIArmada\CommerceSupport\Support\OwnerScopeOverride;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
@@ -34,10 +35,17 @@ final class OwnerScopedIds
         $query = $modelClass::query();
 
         if ($config->enabled) {
+            $owner = $config->owner ?? OwnerContext::resolve();
+
+            OwnerContext::assertResolvedOrExplicitGlobal(
+                $owner,
+                sprintf('%s requires an owner context or explicit global context.', $modelClass),
+            );
+
             $query = OwnerQuery::applyToEloquentBuilder(
                 $query->withoutGlobalScope(OwnerScope::class),
-                OwnerContext::resolve(),
-                $includeGlobal ?? $config->includeGlobal,
+                $owner,
+                OwnerScopeOverride::suppressIncludeGlobal() ? false : ($includeGlobal ?? $config->includeGlobal),
                 $config->ownerTypeColumn,
                 $config->ownerIdColumn,
             );

@@ -47,24 +47,36 @@ trait HasOwner // @phpstan-ignore trait.unused
 
     protected static function bootHasOwner(): void
     {
-        $config = static::resolveOwnerScopeConfig();
+        static::addGlobalScope(new OwnerScope);
 
-        if (! $config->enabled) {
-            return;
-        }
+        static::creating(function (Model $model): void {
+            $config = static::resolveOwnerScopeConfig();
 
-        static::addGlobalScope(new OwnerScope($config));
+            if (! $config->enabled) {
+                return;
+            }
 
-        static::creating(function (Model $model) use ($config): void {
             static::assignOwnerOnCreate($model, $config);
         });
 
-        static::saving(function (Model $model) use ($config): void {
+        static::saving(function (Model $model): void {
+            $config = static::resolveOwnerScopeConfig();
+
+            if (! $config->enabled) {
+                return;
+            }
+
             static::guardOwnedOwnerWrite($model, $config, 'save');
             static::guardGlobalOwnerWrite($model, $config, 'save');
         });
 
-        static::deleting(function (Model $model) use ($config): void {
+        static::deleting(function (Model $model): void {
+            $config = static::resolveOwnerScopeConfig();
+
+            if (! $config->enabled) {
+                return;
+            }
+
             static::guardOwnedOwnerWrite($model, $config, 'delete');
             static::guardGlobalOwnerWrite($model, $config, 'delete');
         });
@@ -85,7 +97,7 @@ trait HasOwner // @phpstan-ignore trait.unused
             return;
         }
 
-        $owner = OwnerContext::resolve();
+        $owner = $config->owner ?? OwnerContext::resolve();
 
         if ($owner === null) {
             OwnerContext::assertResolvedOrExplicitGlobal(
@@ -148,7 +160,7 @@ trait HasOwner // @phpstan-ignore trait.unused
 
     protected static function assertOwnerMatchesCurrentContext(Model $model, OwnerScopeConfig $config, string $operation): void
     {
-        $owner = OwnerContext::resolve();
+        $owner = $config->owner ?? OwnerContext::resolve();
 
         if ($owner === null) {
             throw new AuthorizationException(sprintf('A matching owner context is required to %s owned %s records.', $operation, $model::class));
@@ -212,7 +224,7 @@ trait HasOwner // @phpstan-ignore trait.unused
         $ownerIdColumn = $config->ownerIdColumn;
 
         if ($owner === OwnerContext::CURRENT) {
-            $owner = OwnerContext::resolve();
+            $owner = $config->owner ?? OwnerContext::resolve();
 
             OwnerContext::assertResolvedOrExplicitGlobal(
                 $owner,
@@ -243,8 +255,8 @@ trait HasOwner // @phpstan-ignore trait.unused
     {
         /** @var OwnerScopeConfig $config */
         $config = static::resolveOwnerScopeConfig();
-        $ownerTypeColumn = $config->ownerTypeColumn;
-        $ownerIdColumn = $config->ownerIdColumn;
+        $ownerTypeColumn = $query->getModel()->qualifyColumn($config->ownerTypeColumn);
+        $ownerIdColumn = $query->getModel()->qualifyColumn($config->ownerIdColumn);
 
         return $query->withoutOwnerScope()
             ->whereNull($ownerTypeColumn)

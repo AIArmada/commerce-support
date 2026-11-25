@@ -10,15 +10,23 @@ use Illuminate\Database\Eloquent\Scope;
 
 final class OwnerScope implements Scope
 {
-    public function __construct(private readonly OwnerScopeConfig $config) {}
+    /**
+     * @param  OwnerScopeConfig|null  $config  Explicit config for non-`HasOwner` scopes that
+     *                                         follow a related model's owner tuple. `HasOwner`
+     *                                         registers this scope without config so the model's
+     *                                         live `ownerScopeConfig()` governs every query.
+     */
+    public function __construct(private readonly ?OwnerScopeConfig $config = null) {}
 
     public function apply(Builder $builder, Model $model): void
     {
-        if (! $this->config->enabled) {
+        $config = $this->resolveConfig($model);
+
+        if (! $config->enabled) {
             return;
         }
 
-        $owner = $this->config->owner ?? OwnerContext::resolve();
+        $owner = $config->owner ?? OwnerContext::resolve();
 
         OwnerContext::assertResolvedOrExplicitGlobal(
             $owner,
@@ -29,9 +37,27 @@ final class OwnerScope implements Scope
         OwnerQuery::applyToEloquentBuilder(
             $builder,
             $owner,
-            OwnerScopeOverride::suppressIncludeGlobal() ? false : $this->config->includeGlobal,
-            $this->config->ownerTypeColumn,
-            $this->config->ownerIdColumn,
+            OwnerScopeOverride::suppressIncludeGlobal() ? false : $config->includeGlobal,
+            $config->ownerTypeColumn,
+            $config->ownerIdColumn,
         );
+    }
+
+    private function resolveConfig(Model $model): OwnerScopeConfig
+    {
+        if ($this->config !== null) {
+            return $this->config;
+        }
+
+        $modelClass = $model::class;
+
+        if (method_exists($modelClass, 'ownerScopeConfig')) {
+            /** @var OwnerScopeConfig $config */
+            $config = $modelClass::ownerScopeConfig();
+
+            return $config;
+        }
+
+        return new OwnerScopeConfig(enabled: true);
     }
 }

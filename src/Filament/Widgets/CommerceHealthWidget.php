@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Filament\Widgets;
 
+use Filament\Facades\Filament;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Health\Facades\Health;
@@ -42,7 +43,9 @@ class CommerceHealthWidget extends Widget
             return false;
         }
 
-        $user = auth()->user();
+        $user = class_exists(Filament::class)
+            ? (Filament::auth()->user() ?? auth()->user())
+            : auth()->user();
 
         if ($user === null) {
             return false;

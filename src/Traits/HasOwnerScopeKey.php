@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Traits;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerScopeKey;
 use Illuminate\Database\Eloquent\Model;
 
@@ -53,11 +54,19 @@ trait HasOwnerScopeKey // @phpstan-ignore trait.unused
         $ownerType = static::readOwnerScopeKeyAttribute($model, static::ownerTypeColumnName());
         $ownerId = static::readOwnerScopeKeyAttribute($model, static::ownerIdColumnName());
 
-        if ($ownerType === null && $ownerId === null && ! OwnerContext::isExplicitGlobal()) {
-            $owner = OwnerContext::resolve();
+        // `saving` runs before `HasOwner::creating` assigns the owner tuple, so
+        // a new record relies on the ambient owner here. Existing records and
+        // models that never auto-assign must keep their real (often global)
+        // tuple instead of being stamped with ambient state.
+        if ($ownerType === null && $ownerId === null && ! $model->exists && ! OwnerContext::isExplicitGlobal()) {
+            $config = static::ownerScopeConfigSafely();
 
-            if ($owner !== null) {
-                return OwnerScopeKey::forOwner($owner);
+            if ($config !== null && $config->enabled && $config->autoAssignOnCreate) {
+                $owner = $config->owner ?? OwnerContext::resolve();
+
+                if ($owner !== null) {
+                    return OwnerScopeKey::forOwner($owner);
+                }
             }
         }
 
@@ -65,5 +74,17 @@ trait HasOwnerScopeKey // @phpstan-ignore trait.unused
             is_string($ownerType) ? $ownerType : null,
             $ownerId,
         );
+    }
+
+    protected static function ownerScopeConfigSafely(): ?OwnerScopeConfig
+    {
+        if (! method_exists(static::class, 'resolveOwnerScopeConfig')) {
+            return null;
+        }
+
+        /** @var OwnerScopeConfig $config */
+        $config = static::resolveOwnerScopeConfig();
+
+        return $config;
     }
 }

@@ -8,6 +8,7 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerQuery;
 use AIArmada\CommerceSupport\Support\OwnerScope;
 use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
+use AIArmada\CommerceSupport\Support\OwnerScopeOverride;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
@@ -22,7 +23,7 @@ final class OwnerUiScope
             return null;
         }
 
-        $owner = OwnerContext::resolve();
+        $owner = $config->owner ?? OwnerContext::resolve();
 
         OwnerContext::assertResolvedOrExplicitGlobal(
             $owner,
@@ -40,7 +41,7 @@ final class OwnerUiScope
             return true;
         }
 
-        return OwnerContext::resolve() !== null || OwnerContext::isExplicitGlobal();
+        return $config->owner !== null || OwnerContext::resolve() !== null || OwnerContext::isExplicitGlobal();
     }
 
     public static function apply(Builder $query, ?string $configKey = null, ?bool $includeGlobal = null, ?string $message = null): Builder
@@ -55,7 +56,7 @@ final class OwnerUiScope
             return $query;
         }
 
-        $owner = OwnerContext::resolve();
+        $owner = $config->owner ?? OwnerContext::resolve();
 
         OwnerContext::assertResolvedOrExplicitGlobal(
             $owner,
@@ -67,7 +68,7 @@ final class OwnerUiScope
         return OwnerQuery::applyToEloquentBuilder(
             $scopedQuery,
             $owner,
-            $includeGlobal ?? $config->includeGlobal,
+            OwnerScopeOverride::suppressIncludeGlobal() ? false : ($includeGlobal ?? $config->includeGlobal),
             $config->ownerTypeColumn,
             $config->ownerIdColumn,
         );
@@ -156,7 +157,7 @@ final class OwnerUiScope
             return false;
         }
 
-        $owner = OwnerContext::resolve();
+        $owner = $config->owner ?? OwnerContext::resolve();
 
         if ($owner !== null) {
             if ($recordOwner instanceof Model && self::sameOwner($owner, $recordOwner)) {

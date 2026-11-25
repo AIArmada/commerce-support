@@ -88,7 +88,8 @@ OwnerCache::forgetOwner($owner);
 - **Automatic scope key generation**: Uses `OwnerScopeKey::forOwner($owner)` to create a hash unique to each owner
 - **Global context support**: Pass `null` as owner for global/unauthenticated caches (key: `owner:global:v1:logicalKey`)
 - **Portable invalidation**: `forgetOwner()` bumps the owner's cache version, so every versioned key stops resolving on any driver — including file/array/database drivers without tag support. Tag flush is kept as a best-effort memory release where supported
-- **Stampede protection**: `remember()` rebuilds run under an atomic lock; concurrent misses wait for the in-flight rebuild instead of recomputing, and fall back to an uncached computation if the lock cannot be acquired
+- **Stampede protection**: `remember()` rebuilds run under an atomic lock; concurrent misses wait for the in-flight rebuild instead of recomputing, fall back to an uncached computation if the lock cannot be acquired, and degrade to an unguarded rebuild on drivers without lock support
+- **Null-safe reuse**: a legitimately cached `null` is returned by `remember()` without re-running the callback or taking a lock
 
 ### What OwnerCache Is For
 
@@ -213,7 +214,7 @@ class ProcessOrderJob implements ShouldQueue
 
 ### Owner Resolution
 
-The trait looks for public properties that are Eloquent models:
+The trait inspects the job's public properties:
 
 ```php
 public function __construct(
@@ -223,7 +224,14 @@ public function __construct(
 ) {}
 ```
 
-If a public model property has `owner_type` and `owner_id` attributes, it uses those to resolve the owner. If the job instead carries explicit owner payload fields, the trait resolves from those. Otherwise, it treats the model itself as the owner (useful for jobs where the model itself is the owner).
+Resolution order (explicit payload always wins):
+
+1. explicit `ownerType` / `ownerId` / `ownerIsGlobal` public properties,
+2. a public model property whose `getOwner()` returns a model,
+3. a public model property with a non-null owner tuple (`owner_type` / `owner_id`),
+4. a public `OwnerScopeIdentifiable` property.
+
+Arbitrary models are never treated as the tenant owner on their own: a model with a global owner tuple contributes no owner context. Jobs that must run without an owner declare it explicitly (`ownerIsGlobal = true` or `OwnerScopedJob`); when owner mode is enabled a job with no resolvable owner fails closed, and when owner mode is disabled the job body runs directly without entering explicit global context.
 
 Best-practice job shape is explicit and typed:
 

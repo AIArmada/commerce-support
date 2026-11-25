@@ -19,9 +19,22 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Throwable;
 use UnitEnum;
+use WeakMap;
 
 final class CommerceNavigation
 {
+    /**
+     * Panels whose navigation has already been registered in this process.
+     *
+     * Panels are long-lived singletons, so a per-instance guard survives
+     * Octane worker cycles without a global "configured" flag that would
+     * leave every other panel unconfigured. Weak references keep the guard
+     * bounded by panel lifetime.
+     *
+     * @var WeakMap<object, bool>|null
+     */
+    private static ?WeakMap $configuredPanels = null;
+
     /**
      * @param  array<string | int, mixed>|null  $configuredGroups
      * @return array<NavigationGroup>
@@ -167,12 +180,14 @@ final class CommerceNavigation
         }
 
         // Guard against double-call from both CommerceNavigationPlugin and
-        // FilamentCommerceSupportPlugin. Config is request-scoped in both
-        // traditional PHP and Octane, unlike a static property.
-        if (self::navigationConfig('_panel_configured', false)) {
+        // FilamentCommerceSupportPlugin, keyed per panel instance.
+        self::$configuredPanels ??= new WeakMap;
+
+        if (isset(self::$configuredPanels[$panel])) {
             return $panel;
         }
-        config()->set('commerce-support.filament.navigation._panel_configured', true);
+
+        self::$configuredPanels[$panel] = true;
 
         if (method_exists($panel, 'navigation')) {
             $panel->navigation(static fn (): NavigationBuilder => self::builder());

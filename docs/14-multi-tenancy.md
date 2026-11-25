@@ -291,7 +291,14 @@ final class ExportOrdersJob implements OwnerScopedJob, ShouldQueue
 
 If a queue/event payload is serialized externally (wire format), use snake_case keys (`owner_type`, `owner_id`) and map them to camelCase PHP fields at the boundary.
 
-For simpler jobs that do not implement `OwnerScopedJob`, `ResolveOwnerJobContextAction` also inspects public `ownerType` / `ownerId` / `ownerIsGlobal` properties and public model payloads. If a public model exposes `getOwner()`, that owner wins; otherwise the resolver falls back to the model's `owner_type` / `owner_id` tuple, and finally the model itself as the owner reference. Prefer `OwnerScopedJob` for explicit behavior, but this fallback keeps queued work owner-safe when jobs pass a model payload directly.
+For simpler jobs that do not implement `OwnerScopedJob`, `ResolveOwnerJobContextAction` resolves owner context from public payload data, in this order:
+
+1. explicit `ownerType` / `ownerId` / `ownerIsGlobal` public properties (always win, regardless of property declaration order),
+2. a public model property whose `getOwner()` returns a model,
+3. a public model property with a non-null owner tuple (`OwnerTupleColumns::forModelClass()`),
+4. a public `OwnerScopeIdentifiable` property.
+
+Arbitrary model payloads are never treated as the tenant owner: a model with a global owner tuple contributes no owner context. Jobs that must run without an owner declare it explicitly (`ownerIsGlobal = true` or `OwnerScopedJob`), and when owner mode is enabled a job with no resolvable owner fails closed. Prefer `OwnerScopedJob` for explicit behavior.
 
 ## Owner lifecycle events
 
@@ -443,6 +450,8 @@ OwnerContext::withOwner(null, function () {
 ```
 
 `OwnerContext::setForRequest()` is reserved for framework-level integrations (for example, team resolvers/middleware). Application code should prefer `OwnerContext::withOwner(...)` so state is always restored safely.
+
+`OwnerContextTeamResolver` maps Spatie's team API onto the owner context. In HTTP contexts it stores the team owner via `OwnerContext::setForRequest()`. In CLI/queue contexts there is no request bag to hold persistent state, so a team switch applies to the active `OwnerContext::withOwner(...)` scope and is otherwise ignored instead of leaking process-wide owner state across jobs.
 
 `OwnerContext::setForRequest()` is HTTP-only and will throw outside an active request lifecycle. For jobs/commands/non-HTTP surfaces, always use `OwnerContext::withOwner(...)`.
 

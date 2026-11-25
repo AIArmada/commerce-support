@@ -47,13 +47,22 @@ trait OwnerContextJob
 
         $owner = $ownerContext->toOwnerModelOrFail();
 
-        if (config('commerce-support.owner.enabled', false) && $owner === null) {
-            throw new RuntimeException(
-                sprintf(
-                    '%s requires an owner context (ownerType + ownerId). Ensure the job payload includes owner data or an explicit global owner context.',
-                    static::class,
-                ),
-            );
+        if ($owner === null) {
+            if (config('commerce-support.owner.enabled', false)) {
+                throw new RuntimeException(
+                    sprintf(
+                        '%s requires an owner context (ownerType + ownerId). Ensure the job payload includes owner data or an explicit global owner context.',
+                        static::class,
+                    ),
+                );
+            }
+
+            // Owner mode is disabled and no owner was declared: run directly
+            // instead of entering explicit global so `isExplicitGlobal()` is
+            // not falsely activated for the job body.
+            $this->performJob();
+
+            return;
         }
 
         OwnerContext::withOwner($owner, function (): void {

@@ -8,6 +8,7 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerQuery;
 use AIArmada\CommerceSupport\Support\OwnerScope;
 use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
+use AIArmada\CommerceSupport\Support\OwnerScopeOverride;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -34,8 +35,24 @@ final class ResolveOwnedModelOrFailAction
         /** @var Builder<TModel> $query */
         $query = $modelClass::query();
 
+        /** @var OwnerScopeConfig|null $config */
+        $config = null;
+
+        if (method_exists($modelClass, 'ownerScopeConfig')) {
+            /** @var OwnerScopeConfig $resolved */
+            $resolved = $modelClass::ownerScopeConfig();
+            $config = $resolved;
+
+            if (! $config->enabled) {
+                throw new InvalidArgumentException(sprintf(
+                    '%s has owner scoping disabled. Do not use OwnerWriteGuard on models that opt out of owner scoping.',
+                    $modelClass,
+                ));
+            }
+        }
+
         if ($owner === OwnerContext::CURRENT) {
-            $owner = OwnerContext::resolve();
+            $owner = $config?->owner ?? OwnerContext::resolve();
 
             OwnerContext::assertResolvedOrExplicitGlobal(
                 $owner,
@@ -47,17 +64,9 @@ final class ResolveOwnedModelOrFailAction
             throw new InvalidArgumentException('Owner must be an Eloquent model, null, or omitted.');
         }
 
-        if (method_exists($modelClass, 'ownerScopeConfig')) {
-            /** @var OwnerScopeConfig $config */
-            $config = $modelClass::ownerScopeConfig();
+        $includeGlobal = OwnerScopeOverride::suppressIncludeGlobal() ? false : $includeGlobal;
 
-            if (! $config->enabled) {
-                throw new InvalidArgumentException(sprintf(
-                    '%s has owner scoping disabled. Do not use OwnerWriteGuard on models that opt out of owner scoping.',
-                    $modelClass,
-                ));
-            }
-
+        if ($config !== null) {
             $query = OwnerQuery::applyToEloquentBuilder(
                 $query->withoutGlobalScope(OwnerScope::class),
                 $owner,

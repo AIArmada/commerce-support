@@ -8,7 +8,6 @@ use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleColumns;
 use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleParser;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * @template TModel of Model
@@ -21,7 +20,9 @@ final class OwnerBatchRunner
 
     /**
      * @param  class-string<TModel>  $modelClass  Model to discover owner tuples from
-     * @param  array{enabled?: string, include_global?: string}|null  $ownerConfig
+     * @param  array{enabled?: string, include_global?: string}|null  $ownerConfig  Optional config keys;
+     *                                                                              omitted keys fall back to
+     *                                                                              the model's `ownerScopeConfig()`.
      */
     public function __construct(
         private readonly string $modelClass,
@@ -76,8 +77,13 @@ final class OwnerBatchRunner
 
     private function isOwnerDisabled(): bool
     {
-        return $this->enabledConfigKey !== null
-            && ! (bool) config($this->enabledConfigKey, false);
+        if ($this->enabledConfigKey !== null) {
+            return ! (bool) config($this->enabledConfigKey, false);
+        }
+
+        $config = $this->modelOwnerScopeConfig();
+
+        return $config !== null && ! $config->enabled;
     }
 
     /**
@@ -100,7 +106,7 @@ final class OwnerBatchRunner
         $owners = collect();
         $seenGlobal = false;
 
-        $rows = DB::table($model->getTable())
+        $rows = $model->getConnection()->table($model->getTable())
             ->select([$columns->ownerTypeColumn, $columns->ownerIdColumn])
             ->distinct()
             ->orderBy($columns->ownerTypeColumn)
@@ -163,8 +169,25 @@ final class OwnerBatchRunner
 
     private function resolveIncludeGlobal(): bool
     {
-        return $this->includeGlobalConfigKey !== null
-            && (bool) config($this->includeGlobalConfigKey, false);
+        if ($this->includeGlobalConfigKey !== null) {
+            return (bool) config($this->includeGlobalConfigKey, false);
+        }
+
+        $config = $this->modelOwnerScopeConfig();
+
+        return $config !== null && $config->includeGlobal;
+    }
+
+    private function modelOwnerScopeConfig(): ?OwnerScopeConfig
+    {
+        if (! method_exists($this->modelClass, 'ownerScopeConfig')) {
+            return null;
+        }
+
+        /** @var OwnerScopeConfig $config */
+        $config = $this->modelClass::ownerScopeConfig();
+
+        return $config;
     }
 
     private function reduce(Collection $results): mixed
@@ -184,7 +207,13 @@ final class OwnerBatchRunner
                 }
 
                 foreach ($result as $key => $value) {
-                    $carry[$key] = ($carry[$key] ?? 0) + $value;
+                    if (! is_int($value) && ! is_float($value)) {
+                        continue;
+                    }
+
+                    $current = $carry[$key] ?? 0;
+
+                    $carry[$key] = is_int($current) || is_float($current) ? $current + $value : $value;
                 }
 
                 return $carry;

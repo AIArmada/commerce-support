@@ -414,12 +414,14 @@ $owner = OwnerContext::fromTypeAndId(
 
 When using `OwnerContextJob`, prefer an explicit `OwnerScopedJob` implementation that returns `OwnerJobContext`.
 
+Jobs that do not implement `OwnerScopedJob` resolve owner context from public payload data only: explicit `ownerType` / `ownerId` / `ownerIsGlobal` properties (which always win), a model property exposing `getOwner()`, a model property with a non-null owner tuple, or an `OwnerScopeIdentifiable` property. Arbitrary model payloads are never treated as the tenant owner — a global owner tuple contributes no context — and when owner mode is enabled a job with no resolvable owner fails closed. When owner mode is disabled and no owner is resolvable, `performJob()` runs directly without entering explicit global context.
+
 Laravel convention guidance:
 
 - Use camelCase for PHP fields (`ownerType`, `ownerId`, `ownerIsGlobal`)
 - Keep snake_case for persistence/wire payload keys (`owner_type`, `owner_id`)
 
-`ownerIsGlobal=true` is mutually exclusive with owner-bearing payload data (`ownerType`/`ownerId` or owner-bearing model payloads). Contradictory payloads fail closed.
+`ownerIsGlobal=true` is mutually exclusive with explicit `ownerType` / `ownerId` values; contradictory payloads fail closed. When explicit payload fields are present they win over every model-derived source.
 
 ## OwnerScopeIdentifiable
 
@@ -571,7 +573,7 @@ TextInput::make('slug')
     ->unique(ignoreRecord: true, modifyRuleUsing: fn (Unique $rule): Unique => OwnerUniqueRule::scopeToOwner($rule, Doc::class));
 ```
 
-The model must expose `::ownerScopeConfig()`, which comes from the `HasOwnerScopeConfig` trait (`HasOwner` alone does not declare it). When owner scoping is disabled for the model the rule is returned unchanged; with no resolved owner it constrains to global-only rows.
+The model must expose `::ownerScopeConfig()`, which comes from the `HasOwnerScopeConfig` trait (`HasOwner` alone does not declare it). When owner scoping is disabled for the model the rule is returned unchanged. When scoping is enabled without a resolved owner or explicit global context the rule call fails closed with `NoCurrentOwnerException`; a model config with a fixed `owner` scopes to that pinned owner without ambient context.
 
 ## UniqueSlug
 

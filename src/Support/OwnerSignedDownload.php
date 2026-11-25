@@ -78,12 +78,23 @@ final class OwnerSignedDownload
         string | int | null $userId,
     ): bool {
         $cachedResourceId = $payload[$resourceIdKey] ?? null;
+        $expectedId = (string) $expectedResourceId;
 
-        if ((string) $cachedResourceId !== (string) $expectedResourceId) {
+        if (! is_scalar($cachedResourceId) || (string) $cachedResourceId === '' || $expectedId === '') {
             return false;
         }
 
-        if ($userId === null || (string) ($payload['user_id'] ?? '') !== (string) $userId) {
+        if (! hash_equals((string) $cachedResourceId, $expectedId)) {
+            return false;
+        }
+
+        $payloadUserId = $payload['user_id'] ?? null;
+
+        if ($userId === null || ! is_scalar($payloadUserId) || (string) $payloadUserId === '') {
+            return false;
+        }
+
+        if (! hash_equals((string) $payloadUserId, (string) $userId)) {
             return false;
         }
 
@@ -115,7 +126,11 @@ final class OwnerSignedDownload
     private static function matchesOwner(?Model $owner, ?string $expectedOwnerType, string | int | null $expectedOwnerId): bool
     {
         if ($expectedOwnerType === null && $expectedOwnerId === null) {
-            return $owner === null;
+            if ($owner !== null) {
+                return false;
+            }
+
+            return ! config('commerce-support.owner.enabled', false) || OwnerContext::isExplicitGlobal();
         }
 
         if ($owner === null || $expectedOwnerType === null || $expectedOwnerId === null) {

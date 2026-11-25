@@ -39,7 +39,7 @@ final readonly class OwnerJobContext
     public static function fromOwnerModel(Model $owner): self
     {
         return new self(
-            ownerType: $owner::class,
+            ownerType: $owner->getMorphClass(),
             ownerId: $owner->getKey(),
             ownerIsGlobal: false,
         );

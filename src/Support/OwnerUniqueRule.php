@@ -17,7 +17,8 @@ use InvalidArgumentException;
  * slugs/codes and leaks cross-owner existence through validation errors.
  * This helper constrains the rule to the model's owner scope, honoring the
  * model's own scope config (enabled flag, include-global behavior, and any
- * customized owner column names).
+ * customized owner column names), and fails closed when neither an owner nor
+ * explicit global context is active.
  */
 final class OwnerUniqueRule
 {
@@ -37,12 +38,19 @@ final class OwnerUniqueRule
             return $rule;
         }
 
-        $owner = OwnerContext::resolve();
+        $owner = $config->owner ?? OwnerContext::resolve();
+
+        OwnerContext::assertResolvedOrExplicitGlobal(
+            $owner,
+            sprintf('%s requires an owner context or explicit global context.', $modelClass),
+        );
+
+        $includeGlobal = OwnerScopeOverride::suppressIncludeGlobal() ? false : $config->includeGlobal;
         $typeColumn = $config->ownerTypeColumn;
         $idColumn = $config->ownerIdColumn;
 
         if ($owner instanceof Model) {
-            if ($config->includeGlobal) {
+            if ($includeGlobal) {
                 return $rule->where(function (Builder $query) use ($owner, $typeColumn, $idColumn): void {
                     $query
                         ->where(function (Builder $ownerQuery) use ($owner, $typeColumn, $idColumn): void {

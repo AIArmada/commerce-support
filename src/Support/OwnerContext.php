@@ -73,23 +73,61 @@ final class OwnerContext
         $previousState = self::readState();
         $previousOwner = $previousState['hasOverride'] ? $previousState['override'] : null;
 
-        if ($owner !== null && ! self::sameOwner($previousOwner, $owner)) {
+        $switchingToOwner = $owner !== null && ! self::sameOwner($previousOwner, $owner);
+        $forgettingPreviousOwner = $previousOwner !== null && ($owner === null || ! self::sameOwner($previousOwner, $owner));
+
+        if ($switchingToOwner) {
             event(new MakingOwnerCurrentEvent($owner));
         }
 
-        if ($owner === null && $previousOwner !== null) {
+        if ($forgettingPreviousOwner) {
             event(new ForgettingCurrentOwnerEvent($previousOwner));
         }
 
         $request->attributes->set(self::REQUEST_KEY, ['hasOverride' => true, 'override' => $owner]);
 
-        if ($owner !== null && ! self::sameOwner($previousOwner, $owner)) {
-            event(new MadeOwnerCurrentEvent($owner));
+        if ($switchingToOwner) {
+            try {
+                event(new MadeOwnerCurrentEvent($owner));
+            } catch (Throwable $e) {
+                $request->attributes->set(self::REQUEST_KEY, $previousState);
+
+                throw $e;
+            }
         }
 
-        if ($owner === null && $previousOwner !== null) {
+        if ($forgettingPreviousOwner) {
             event(new ForgotCurrentOwnerEvent($previousOwner));
         }
+    }
+
+    /**
+     * Whether an active HTTP request can hold request-scoped owner state.
+     *
+     * @internal Framework integration support (e.g. team resolver).
+     */
+    public static function hasActiveRequest(): bool
+    {
+        return self::httpRequest() instanceof Request;
+    }
+
+    /**
+     * Update the active owner override in-place without starting a scope.
+     *
+     * Non-HTTP contexts only. A no-op when no scoped override is active:
+     * persisting process-wide owner state would leak across queued jobs.
+     *
+     * @internal Framework integration support (e.g. team resolver).
+     */
+    public static function updateActiveOverride(?Model $owner): void
+    {
+        $state = self::readState();
+
+        if (! $state['hasOverride']) {
+            return;
+        }
+
+        self::writeState(['hasOverride' => true, 'override' => $owner]);
     }
 
     public static function hasOverride(): bool
@@ -131,10 +169,19 @@ final class OwnerContext
 
     public static function withOwner(?Model $owner, callable $callback): mixed
     {
+        $capturedRequest = self::httpRequest();
         $previous = self::readState();
+        $previousOwner = $previous['hasOverride'] ? $previous['override'] : null;
+
+        $displacingOwner = $previousOwner !== null && ! self::sameOwner($previousOwner, $owner);
+        $restoringPreviousOwner = $previousOwner !== null && ($owner === null || ! self::sameOwner($previousOwner, $owner));
 
         if ($owner !== null) {
             event(new MakingOwnerCurrentEvent($owner));
+        }
+
+        if ($displacingOwner) {
+            event(new ForgettingCurrentOwnerEvent($previousOwner));
         }
 
         self::writeState(['hasOverride' => true, 'override' => $owner]);
@@ -143,10 +190,14 @@ final class OwnerContext
             try {
                 event(new MadeOwnerCurrentEvent($owner));
             } catch (Throwable $e) {
-                self::writeState($previous);
+                self::restoreState($capturedRequest, $previous);
 
                 throw $e;
             }
+        }
+
+        if ($displacingOwner) {
+            event(new ForgotCurrentOwnerEvent($previousOwner));
         }
 
         try {
@@ -156,12 +207,17 @@ final class OwnerContext
                 try {
                     event(new ForgettingCurrentOwnerEvent($owner));
                 } finally {
-                    self::writeState($previous);
+                    self::restoreState($capturedRequest, $previous);
                 }
 
                 event(new ForgotCurrentOwnerEvent($owner));
             } else {
-                self::writeState($previous);
+                self::restoreState($capturedRequest, $previous);
+            }
+
+            if ($restoringPreviousOwner) {
+                event(new MakingOwnerCurrentEvent($previousOwner));
+                event(new MadeOwnerCurrentEvent($previousOwner));
             }
         }
     }
@@ -249,6 +305,23 @@ final class OwnerContext
     {
         $request = self::httpRequest();
 
+        if ($request !== null) {
+            $request->attributes->set(self::REQUEST_KEY, $state);
+
+            return;
+        }
+
+        self::$fallback = $state;
+    }
+
+    /**
+     * Restore state onto the request captured at scope entry, so a request
+     * swapped in during the callback cannot receive the restored state.
+     *
+     * @param  array{hasOverride: bool, override: ?Model}  $state
+     */
+    private static function restoreState(?Request $request, array $state): void
+    {
         if ($request !== null) {
             $request->attributes->set(self::REQUEST_KEY, $state);
 
