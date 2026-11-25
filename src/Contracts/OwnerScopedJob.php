@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Contracts;
 
-use AIArmada\CommerceSupport\Support\OwnerJobContext;
+use AIArmada\CommerceSupport\Data\OwnerJobContext;
 
 interface OwnerScopedJob
 {

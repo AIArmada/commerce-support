@@ -14,9 +14,13 @@ final class PaymentSubjectResolver implements PaymentSubjectResolverInterface
     /** @var array<string, PaymentSubjectDriverInterface> */
     private array $drivers = [];
 
+    /** @var list<PaymentSubjectDriverInterface>|null */
+    private ?array $sorted = null;
+
     public function register(PaymentSubjectDriverInterface $driver): void
     {
         $this->drivers[$driver->getIdentifier()] = $driver;
+        $this->sorted = null;
     }
 
     public function resolve(PaymentSubjectContext $context): ?ResolvedPaymentSubject
@@ -46,12 +50,16 @@ final class PaymentSubjectResolver implements PaymentSubjectResolverInterface
      */
     private function sortedDrivers(): array
     {
+        if ($this->sorted !== null) {
+            return $this->sorted;
+        }
+
         $drivers = array_values($this->drivers);
 
         usort($drivers, static function (PaymentSubjectDriverInterface $left, PaymentSubjectDriverInterface $right): int {
             return $right->getPriority() <=> $left->getPriority();
         });
 
-        return $drivers;
+        return $this->sorted = $drivers;
     }
 }

@@ -46,19 +46,20 @@ That resolution is gateway-aware, owner-aware, and package-extensible.
 
 ```php
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
+use AIArmada\CommerceSupport\Support\EloquentRecordReference;
 
 $context = new PaymentSubjectContext(
     gateway: 'chip',
-    actor: $user,
-    subject: $explicitSubject,
-    sessionCustomer: $checkoutSession->customer,
-    sessionBillable: $checkoutSession->billable,
+    actor: EloquentRecordReference::actor($user),
+    subject: EloquentRecordReference::fromModel($explicitSubject),
+    sessionCustomer: EloquentRecordReference::fromModel($checkoutSession->customer),
+    sessionBillable: EloquentRecordReference::fromModel($checkoutSession->billable),
     billingData: $checkoutSession->billing_data ?? [],
     shippingData: $checkoutSession->shipping_data ?? [],
     metadata: [
         'checkout_session_id' => $checkoutSession->id,
     ],
-    owner: $owner,
+    owner: EloquentRecordReference::fromModel($owner),
     source: 'checkout',
 );
 ```
@@ -115,12 +116,12 @@ Commerce Support binds the resolver as a singleton and registers `GuestPaymentSu
 ```php
 use AIArmada\CommerceSupport\Contracts\Payment\CustomerInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\ResolvedPaymentSubject;
-use Illuminate\Database\Eloquent\Model;
+use AIArmada\CommerceSupport\Data\RecordReference;
 
 final readonly class ResolvedPaymentSubject
 {
     public function __construct(
-        public ?Model $subject,
+        public ?RecordReference $subject,
         public ?CustomerInterface $paymentCustomer,
         public bool $isGuest,
         public string $resolvedBy,
@@ -131,7 +132,7 @@ final readonly class ResolvedPaymentSubject
 
 The important fields in practice are:
 
-- `subject` — the resolved local model, often a `Customer` when `aiarmada/customers` is installed
+- `subject` — the immutable type/ID reference, often identifying a `Customer` when `aiarmada/customers` is installed
 - `paymentCustomer` — normalized customer details to send to the gateway
 - `isGuest` — whether the flow resolved a guest customer
 - `resolvedBy` — the driver identifier that produced the result
@@ -172,13 +173,13 @@ use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectResolverInterface;
 $resolved = app(PaymentSubjectResolverInterface::class)->resolve(
     new PaymentSubjectContext(
         gateway: 'chip',
-        actor: $user,
-        sessionCustomer: $checkoutSession->customer,
-        sessionBillable: $checkoutSession->billable,
+        actor: EloquentRecordReference::actor($user),
+        sessionCustomer: EloquentRecordReference::fromModel($checkoutSession->customer),
+        sessionBillable: EloquentRecordReference::fromModel($checkoutSession->billable),
         billingData: $checkoutSession->billing_data ?? [],
         shippingData: $checkoutSession->shipping_data ?? [],
         metadata: ['checkout_session_id' => $checkoutSession->id],
-        owner: $owner,
+        owner: EloquentRecordReference::fromModel($owner),
         source: 'checkout',
     )
 );
@@ -487,19 +488,19 @@ Gateways normalize incoming webhook requests through `WebhookHandlerInterface`.
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentIntentInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\WebhookHandlerInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\WebhookPayload;
-use Illuminate\Http\Request;
+use AIArmada\CommerceSupport\Data\WebhookRequestData;
 
 interface WebhookHandlerInterface
 {
-    public function verifyWebhook(Request $request): bool;
+    public function verifyWebhook(WebhookRequestData $request): bool;
 
-    public function parseWebhook(Request $request): WebhookPayload;
+    public function parseWebhook(WebhookRequestData $request): WebhookPayload;
 
-    public function getEventType(Request $request): string;
+    public function getEventType(WebhookRequestData $request): string;
 
-    public function isPaymentEvent(Request $request): bool;
+    public function isPaymentEvent(WebhookRequestData $request): bool;
 
-    public function getPaymentFromWebhook(Request $request): ?PaymentIntentInterface;
+    public function getPaymentFromWebhook(WebhookRequestData $request): ?PaymentIntentInterface;
 }
 ```
 
@@ -548,9 +549,9 @@ final class CreateCheckoutPaymentAction
     {
         $resolved = $this->subjectResolver->resolve(new PaymentSubjectContext(
             gateway: $this->gateway->getName(),
-            actor: $user,
-            sessionCustomer: $checkoutSession->customer,
-            sessionBillable: $checkoutSession->billable,
+            actor: EloquentRecordReference::actor($user),
+            sessionCustomer: EloquentRecordReference::fromModel($checkoutSession->customer),
+            sessionBillable: EloquentRecordReference::fromModel($checkoutSession->billable),
             billingData: $checkoutSession->billing_data ?? [],
             shippingData: $checkoutSession->shipping_data ?? [],
             metadata: [

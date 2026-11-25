@@ -45,9 +45,10 @@ final class OwnerScopeKey
         $ownerType = $attributes[$ownerTypeColumn] ?? null;
         $ownerId = $attributes[$ownerIdColumn] ?? null;
 
-        return self::forTypeAndId(
-            is_string($ownerType) ? $ownerType : null,
-            is_int($ownerId) || is_string($ownerId) ? $ownerId : null,
-        );
+        if (($ownerType !== null && ! is_string($ownerType)) || ($ownerId !== null && ! is_int($ownerId) && ! is_string($ownerId))) {
+            throw new InvalidArgumentException('Invalid owner type or id.');
+        }
+
+        return self::forTypeAndId($ownerType, $ownerId);
     }
 }

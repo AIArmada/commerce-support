@@ -32,10 +32,7 @@ trait ParsesPostgresTimestamps
             is_string($value)
             && preg_match(self::OFFSET_OR_FRACTIONAL_SUFFIX, $value) === 1
         ) {
-            // Runtime returns the Date factory's class (immutable here), identical
-            // to the parent fallback; the vendor stub assumes mutable Carbon.
-            // @phpstan-ignore return.type
-            return Date::parse($value);
+            return parent::asDateTime(Date::parse($value));
         }
 
         return parent::asDateTime($value);

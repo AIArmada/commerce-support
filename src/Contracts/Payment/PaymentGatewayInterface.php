@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Contracts\Payment;
 
-use AIArmada\CommerceSupport\Exceptions\PaymentGatewayException;
 use Akaunting\Money\Money;
+use RuntimeException;
 
 /**
  * Universal payment gateway interface.
@@ -60,7 +60,7 @@ interface PaymentGatewayInterface
      * - 'send_receipt': Whether to send receipt email
      * - 'metadata': Additional metadata to attach
      *
-     * @throws PaymentGatewayException If payment creation fails
+     * @throws RuntimeException If payment creation fails
      */
     public function createPayment(
         CheckoutableInterface $checkoutable,
@@ -71,14 +71,14 @@ interface PaymentGatewayInterface
     /**
      * Retrieve an existing payment by ID.
      *
-     * @throws PaymentGatewayException If payment not found or retrieval fails
+     * @throws RuntimeException If payment not found or retrieval fails
      */
     public function getPayment(string $paymentId): PaymentIntentInterface;
 
     /**
      * Cancel a pending payment.
      *
-     * @throws PaymentGatewayException If cancellation fails
+     * @throws RuntimeException If cancellation fails
      */
     public function cancelPayment(string $paymentId): PaymentIntentInterface;
 
@@ -87,7 +87,7 @@ interface PaymentGatewayInterface
      *
      * @param  Money|null  $amount  Amount to refund, null for full refund
      *
-     * @throws PaymentGatewayException If refund fails
+     * @throws RuntimeException If refund fails
      */
     public function refundPayment(string $paymentId, ?Money $amount = null): PaymentIntentInterface;
 
@@ -98,7 +98,7 @@ interface PaymentGatewayInterface
      *
      * @param  Money|null  $amount  Amount to capture, null for full amount
      *
-     * @throws PaymentGatewayException If capture fails
+     * @throws RuntimeException If capture fails
      */
     public function capturePayment(string $paymentId, ?Money $amount = null): PaymentIntentInterface;
 

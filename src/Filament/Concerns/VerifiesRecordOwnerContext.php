@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Filament\Concerns;
 
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Exceptions\NoCurrentOwnerException;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerQuery;
 use AIArmada\CommerceSupport\Support\OwnerScope;
-use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerScopeOverride;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use Illuminate\Database\Eloquent\Model;
@@ -236,7 +236,7 @@ trait VerifiesRecordOwnerContext
     private static function effectiveOwnerContext(OwnerScopeConfig $config): array
     {
         if ($config->owner !== null) {
-            return ['owner' => $config->owner, 'explicitGlobal' => false];
+            return ['owner' => OwnerContext::resolveConfigured($config), 'explicitGlobal' => false];
         }
 
         return ['owner' => OwnerContext::resolve(), 'explicitGlobal' => OwnerContext::isExplicitGlobal()];

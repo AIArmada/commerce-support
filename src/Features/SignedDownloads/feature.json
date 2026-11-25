@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "name": "SignedDownloads",
+  "owns": {
+    "store:signed-downloads": [
+      "AIArmada\\CommerceSupport\\Features\\SignedDownloads\\Actions\\IssueSignedDownload"
+    ]
+  },
+  "extensions": {}
+}

@@ -45,7 +45,7 @@ return [
             'signing_secret' => env('PAYMENT_WEBHOOK_SECRET'),
             'signature_header_name' => 'X-Signature',
             'signature_validator' => \App\Webhooks\PaymentGatewaySignatureValidator::class,
-            'webhook_profile' => \AIArmada\CommerceSupport\Webhooks\CommerceWebhookProfile::class,
+            'webhook_profile' => \AIArmada\CommerceSupport\Features\Webhooks\EntryPoints\CommerceWebhookProfile::class,
             'webhook_model' => \Spatie\WebhookClient\Models\WebhookCall::class,
             'process_webhook_job' => \App\Jobs\ProcessPaymentWebhook::class,
         ],
@@ -56,7 +56,7 @@ return [
 ### 2. Create Processor
 
 ```php
-use AIArmada\CommerceSupport\Webhooks\CommerceWebhookProcessor;
+use AIArmada\CommerceSupport\Features\Webhooks\EntryPoints\CommerceWebhookProcessor;
 
 class ProcessPaymentWebhook extends CommerceWebhookProcessor
 {
@@ -95,7 +95,7 @@ Route::webhooks('webhooks/payment-gateway', 'payment-gateway');
 `CommerceSignatureValidator` is an abstract HMAC base. Create a concrete gateway validator that defines the signature header when your provider uses shared-secret signing:
 
 ```php
-use AIArmada\CommerceSupport\Webhooks\CommerceSignatureValidator;
+use AIArmada\CommerceSupport\Features\Webhooks\EntryPoints\CommerceSignatureValidator;
 
 class PaymentGatewaySignatureValidator extends CommerceSignatureValidator
 {
@@ -147,7 +147,7 @@ class StripeSignatureValidator implements SignatureValidator
 Controls which requests should be processed:
 
 ```php
-use AIArmada\CommerceSupport\Webhooks\CommerceWebhookProfile;
+use AIArmada\CommerceSupport\Features\Webhooks\EntryPoints\CommerceWebhookProfile;
 
 class CommerceWebhookProfile implements WebhookProfile
 {
@@ -187,7 +187,7 @@ class PaymentWebhookProfile implements WebhookProfile
 Extend `CommerceWebhookProcessor` for common behavior:
 
 ```php
-use AIArmada\CommerceSupport\Webhooks\CommerceWebhookProcessor;
+use AIArmada\CommerceSupport\Features\Webhooks\EntryPoints\CommerceWebhookProcessor;
 
 class ProcessPaymentWebhook extends CommerceWebhookProcessor
 {

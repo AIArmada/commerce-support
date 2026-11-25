@@ -53,7 +53,7 @@ class CommerceApiException extends CommerceException
         array $responseData,
         int $statusCode,
         ?string $endpoint = null
-    ): static {
+    ): self {
         $message = $responseData['message']
             ?? $responseData['error']
             ?? $responseData['error_description']
@@ -72,7 +72,7 @@ class CommerceApiException extends CommerceException
             'code',
         ]));
 
-        return new static( // @phpstan-ignore new.static
+        return new self(
             message: $message,
             statusCode: $statusCode,
             errorData: $errorData,

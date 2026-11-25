@@ -8,7 +8,6 @@ use AIArmada\CommerceSupport\Contracts\Payment\PaymentCustomerData;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectContext;
 use AIArmada\CommerceSupport\Contracts\Payment\PaymentSubjectDriverInterface;
 use AIArmada\CommerceSupport\Contracts\Payment\ResolvedPaymentSubject;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * Resolves an explicitly preferred checkout actor as the payment subject.
@@ -31,13 +30,13 @@ final class ActorPaymentSubjectDriver implements PaymentSubjectDriverInterface
     public function supports(PaymentSubjectContext $context): bool
     {
         return $this->prefersActor($context)
-            && $context->actor instanceof Model
+            && $context->actor !== null
             && $this->resolveEmail($context) !== null;
     }
 
     public function resolve(PaymentSubjectContext $context): ?ResolvedPaymentSubject
     {
-        if (! $context->actor instanceof Model) {
+        if ($context->actor === null) {
             return null;
         }
 
@@ -52,10 +51,10 @@ final class ActorPaymentSubjectDriver implements PaymentSubjectDriverInterface
             name: $this->cleanString($context->billingData['name'] ?? null)
                 ?? $this->fullNameFromParts($context->billingData)
                 ?? $this->cleanString($context->shippingData['name'] ?? null)
-                ?? $this->cleanString($context->actor->getAttribute('name')),
+                ?? $this->cleanString($context->actor->name),
             phone: $this->cleanString($context->billingData['phone'] ?? null)
                 ?? $this->cleanString($context->shippingData['phone'] ?? null)
-                ?? $this->cleanString($context->actor->getAttribute('phone')),
+                ?? $this->cleanString($context->actor->phone),
             country: $this->resolveCountry($context),
             billingStreetAddress: $this->cleanString($context->billingData['line1'] ?? null),
             billingCity: $this->cleanString($context->billingData['city'] ?? null),
@@ -71,7 +70,7 @@ final class ActorPaymentSubjectDriver implements PaymentSubjectDriverInterface
         );
 
         return new ResolvedPaymentSubject(
-            subject: $context->actor,
+            subject: $context->actor->reference,
             paymentCustomer: $paymentCustomer,
             isGuest: false,
             resolvedBy: $this->getIdentifier(),
@@ -88,7 +87,7 @@ final class ActorPaymentSubjectDriver implements PaymentSubjectDriverInterface
     {
         $email = $this->cleanString($context->billingData['email'] ?? null)
             ?? $this->cleanString($context->shippingData['email'] ?? null)
-            ?? $this->cleanString($context->actor?->getAttribute('email'));
+            ?? $this->cleanString($context->actor?->email);
 
         return $email !== null ? mb_strtolower($email) : null;
     }

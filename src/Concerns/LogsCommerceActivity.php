@@ -34,7 +34,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * }
  * ```
  */
-trait LogsCommerceActivity // @phpstan-ignore trait.unused
+trait LogsCommerceActivity
 {
     use LogsActivity;
 

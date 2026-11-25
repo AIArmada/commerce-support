@@ -33,6 +33,10 @@ final class PublicHttpUrlGuard
      */
     public static function allowHostsForTesting(array $hosts): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new InvalidArgumentException('Private test hosts may only be enabled locally or in tests.');
+        }
+
         self::$testAllowedHosts = array_values(array_unique(array_map(
             static fn (string $host): string => mb_strtolower(mb_trim($host)),
             $hosts
@@ -71,7 +75,7 @@ final class PublicHttpUrlGuard
             return;
         }
 
-        $this->dnsResolver = new SystemPublicDnsResolver;
+        $this->dnsResolver = app(PublicDnsResolver::class);
     }
 
     public function isAllowed(string $url): bool
@@ -95,7 +99,7 @@ final class PublicHttpUrlGuard
         $url = mb_trim($url);
         $parts = parse_url($url);
 
-        if ($url === '' || ! is_array($parts)) {
+        if ($url === '' || ! is_array($parts) || str_contains($url, '\\') || preg_match('/[\x00-\x20\x7f]/', $url) === 1) {
             throw new InvalidArgumentException('Outbound URL must be a valid absolute HTTP URL.');
         }
 
@@ -189,7 +193,7 @@ final class PublicHttpUrlGuard
 
     private static function isTestAllowedHost(string $host): bool
     {
-        if (self::$testAllowedHosts === null) {
+        if (self::$testAllowedHosts === null || ! app()->environment(['local', 'testing'])) {
             return false;
         }
 

@@ -39,24 +39,24 @@ final class BoostInstallCommand extends Command
         $appPath = $this->getAppPath($projectRoot);
         $appNamespace = $this->getAppNamespace($appPath);
 
-        app()->setBasePath($projectRoot);
-
-        if ($appPath !== null) {
-            app()->useAppPath($appPath);
-        }
-
-        if ($appNamespace !== null) {
-            $this->setApplicationNamespace($appNamespace);
-        }
-
-        EnsureCustomGuidelinesSymlinkAction::run(
-            projectRoot: $projectRoot,
-            warn: function (string $message): void {
-                $this->components->warn($message);
-            },
-        );
-
         try {
+            app()->setBasePath($projectRoot);
+
+            if ($appPath !== null) {
+                app()->useAppPath($appPath);
+            }
+
+            if ($appNamespace !== null) {
+                $this->setApplicationNamespace($appNamespace);
+            }
+
+            EnsureCustomGuidelinesSymlinkAction::run(
+                projectRoot: $projectRoot,
+                warn: function (string $message): void {
+                    $this->components->warn($message);
+                },
+            );
+
             $exitCode = $this->call('boost:install');
         } finally {
             app()->setBasePath($originalBasePath);
@@ -90,8 +90,26 @@ final class BoostInstallCommand extends Command
             return null;
         }
 
-        if (str_ends_with($appPath, '/demo/app')) {
-            return 'App\\';
+        $composerPath = dirname($appPath) . '/composer.json';
+
+        if (! is_file($composerPath)) {
+            return null;
+        }
+
+        $contents = file_get_contents($composerPath);
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $composer = json_decode($contents, true);
+
+        foreach (($composer['autoload']['psr-4'] ?? []) as $namespace => $paths) {
+            foreach ((array) $paths as $path) {
+                if (is_string($path) && realpath(dirname($composerPath) . '/' . $path) === realpath($appPath)) {
+                    return $namespace;
+                }
+            }
         }
 
         return null;

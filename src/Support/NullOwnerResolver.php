@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Support;
 
 use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
-use Illuminate\Database\Eloquent\Model;
+use AIArmada\CommerceSupport\Data\RecordReference;
 
 /**
  * Null implementation of OwnerResolverInterface.
@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class NullOwnerResolver implements OwnerResolverInterface
 {
-    public function resolve(): ?Model
+    public function resolve(): ?RecordReference
     {
         return null;
     }

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Traits;
 
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerQuery;
 use AIArmada\CommerceSupport\Support\OwnerScope;
-use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -26,13 +26,11 @@ use InvalidArgumentException;
  * @property string|null $owner_type
  * @property int|string|null $owner_id
  */
-trait HasOwner // @phpstan-ignore trait.unused
+trait HasOwner
 {
     protected static function resolveOwnerScopeConfig(): OwnerScopeConfig
     {
-        // @phpstan-ignore function.alreadyNarrowedType
         if (method_exists(static::class, 'ownerScopeConfig')) {
-            // @phpstan-ignore function.alreadyNarrowedType
             return static::ownerScopeConfig();
         }
 
@@ -97,7 +95,7 @@ trait HasOwner // @phpstan-ignore trait.unused
             return;
         }
 
-        $owner = $config->owner ?? OwnerContext::resolve();
+        $owner = OwnerContext::resolveConfigured($config);
 
         if ($owner === null) {
             OwnerContext::assertResolvedOrExplicitGlobal(
@@ -160,7 +158,7 @@ trait HasOwner // @phpstan-ignore trait.unused
 
     protected static function assertOwnerMatchesCurrentContext(Model $model, OwnerScopeConfig $config, string $operation): void
     {
-        $owner = $config->owner ?? OwnerContext::resolve();
+        $owner = OwnerContext::resolveConfigured($config);
 
         if ($owner === null) {
             throw new AuthorizationException(sprintf('A matching owner context is required to %s owned %s records.', $operation, $model::class));
@@ -224,7 +222,7 @@ trait HasOwner // @phpstan-ignore trait.unused
         $ownerIdColumn = $config->ownerIdColumn;
 
         if ($owner === OwnerContext::CURRENT) {
-            $owner = $config->owner ?? OwnerContext::resolve();
+            $owner = OwnerContext::resolveConfigured($config);
 
             OwnerContext::assertResolvedOrExplicitGlobal(
                 $owner,

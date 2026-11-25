@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Contracts;
 
-use Illuminate\Database\Eloquent\Model;
+use AIArmada\CommerceSupport\Data\RecordReference;
 
 /**
  * Record a redirect from a model's previous slug to its current one.
@@ -17,5 +17,5 @@ interface SlugRedirectRecorder
     /**
      * @return bool Whether a redirect was recorded.
      */
-    public function record(Model $model, ?string $previousSlug): bool;
+    public function record(RecordReference $record, ?string $previousSlug, string $currentSlug): bool;
 }

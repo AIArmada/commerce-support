@@ -39,7 +39,7 @@ OwnerContext::withOwner($owner, function () use ($payload): void {
 
 ```php
 use AIArmada\CommerceSupport\Support\MoneyNormalizer;
-use AIArmada\CommerceSupport\Support\OwnerCache;
+use AIArmada\CommerceSupport\Persistence\OwnerCache;
 
 $amount = MoneyNormalizer::toCents(9990);
 

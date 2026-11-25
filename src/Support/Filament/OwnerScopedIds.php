@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Support\Filament;
 
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerQuery;
 use AIArmada\CommerceSupport\Support\OwnerScope;
-use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
+use AIArmada\CommerceSupport\Support\OwnerScopeConfigFactory;
 use AIArmada\CommerceSupport\Support\OwnerScopeOverride;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -35,7 +36,7 @@ final class OwnerScopedIds
         $query = $modelClass::query();
 
         if ($config->enabled) {
-            $owner = $config->owner ?? OwnerContext::resolve();
+            $owner = OwnerContext::resolveConfigured($config);
 
             OwnerContext::assertResolvedOrExplicitGlobal(
                 $owner,
@@ -98,7 +99,7 @@ final class OwnerScopedIds
         }
 
         if ($configKey !== null && $configKey !== '') {
-            return OwnerScopeConfig::fromConfig($configKey);
+            return OwnerScopeConfigFactory::fromConfig($configKey);
         }
 
         if (method_exists($modelClass, 'scopeForOwner') || method_exists($modelClass, 'scopeGlobalOnly')) {

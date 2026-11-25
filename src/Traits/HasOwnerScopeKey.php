@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Traits;
 
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerContext;
-use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerScopeKey;
 use Illuminate\Database\Eloquent\Model;
 
-trait HasOwnerScopeKey // @phpstan-ignore trait.unused
+trait HasOwnerScopeKey
 {
     protected static string $ownerScopeKeyColumn = 'owner_scope';
 
@@ -62,7 +62,7 @@ trait HasOwnerScopeKey // @phpstan-ignore trait.unused
             $config = static::ownerScopeConfigSafely();
 
             if ($config !== null && $config->enabled && $config->autoAssignOnCreate) {
-                $owner = $config->owner ?? OwnerContext::resolve();
+                $owner = OwnerContext::resolveConfigured($config);
 
                 if ($owner !== null) {
                     return OwnerScopeKey::forOwner($owner);

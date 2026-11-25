@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "name": "Webhooks",
+  "owns": {
+    "table:webhook_calls": [
+      "AIArmada\\CommerceSupport\\Features\\Webhooks\\Actions\\ProcessWebhookCallAction"
+    ]
+  },
+  "extensions": {}
+}

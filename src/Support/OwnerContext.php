@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\CommerceSupport\Support;
 
 use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Events\ForgettingCurrentOwnerEvent;
 use AIArmada\CommerceSupport\Events\ForgotCurrentOwnerEvent;
 use AIArmada\CommerceSupport\Events\MadeOwnerCurrentEvent;
@@ -33,6 +34,13 @@ final class OwnerContext
      */
     private static array $fallback = ['hasOverride' => false, 'override' => null];
 
+    public static function resolveConfigured(OwnerScopeConfig $config): ?Model
+    {
+        return $config->owner === null
+            ? self::resolve()
+            : app(OwnerModelLookup::class)->resolve($config->owner);
+    }
+
     public static function resolve(): ?Model
     {
         $state = self::readState();
@@ -48,7 +56,9 @@ final class OwnerContext
         /** @var OwnerResolverInterface $resolver */
         $resolver = app(OwnerResolverInterface::class);
 
-        return $resolver->resolve();
+        $reference = $resolver->resolve();
+
+        return $reference === null ? null : app(OwnerModelLookup::class)->resolve($reference);
     }
 
     /**
@@ -86,18 +96,18 @@ final class OwnerContext
 
         $request->attributes->set(self::REQUEST_KEY, ['hasOverride' => true, 'override' => $owner]);
 
-        if ($switchingToOwner) {
-            try {
+        try {
+            if ($switchingToOwner) {
                 event(new MadeOwnerCurrentEvent($owner));
-            } catch (Throwable $e) {
-                $request->attributes->set(self::REQUEST_KEY, $previousState);
-
-                throw $e;
             }
-        }
 
-        if ($forgettingPreviousOwner) {
-            event(new ForgotCurrentOwnerEvent($previousOwner));
+            if ($forgettingPreviousOwner) {
+                event(new ForgotCurrentOwnerEvent($previousOwner));
+            }
+        } catch (Throwable $e) {
+            $request->attributes->set(self::REQUEST_KEY, $previousState);
+
+            throw $e;
         }
     }
 
@@ -142,6 +152,10 @@ final class OwnerContext
      */
     public static function flushState(): void
     {
+        if (app()->resolved(OwnerModelLookup::class)) {
+            app(OwnerModelLookup::class)->clear();
+        }
+
         self::$fallback = ['hasOverride' => false, 'override' => null];
 
         $request = self::httpRequest();
@@ -186,18 +200,18 @@ final class OwnerContext
 
         self::writeState(['hasOverride' => true, 'override' => $owner]);
 
-        if ($owner !== null) {
-            try {
+        try {
+            if ($owner !== null) {
                 event(new MadeOwnerCurrentEvent($owner));
-            } catch (Throwable $e) {
-                self::restoreState($capturedRequest, $previous);
-
-                throw $e;
             }
-        }
 
-        if ($displacingOwner) {
-            event(new ForgotCurrentOwnerEvent($previousOwner));
+            if ($displacingOwner) {
+                event(new ForgotCurrentOwnerEvent($previousOwner));
+            }
+        } catch (Throwable $e) {
+            self::restoreState($capturedRequest, $previous);
+
+            throw $e;
         }
 
         try {
@@ -228,7 +242,11 @@ final class OwnerContext
             throw new InvalidArgumentException('Owner type and owner id must not be empty strings.');
         }
 
-        if ($ownerType === null || $ownerId === null) {
+        if (($ownerType === null) !== ($ownerId === null)) {
+            throw new InvalidArgumentException('Owner type and owner id must both be present or both be null.');
+        }
+
+        if ($ownerType === null && $ownerId === null) {
             return null;
         }
 

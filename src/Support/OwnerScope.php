@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Support;
 
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
@@ -26,7 +27,7 @@ final class OwnerScope implements Scope
             return;
         }
 
-        $owner = $config->owner ?? OwnerContext::resolve();
+        $owner = OwnerContext::resolveConfigured($config);
 
         OwnerContext::assertResolvedOrExplicitGlobal(
             $owner,

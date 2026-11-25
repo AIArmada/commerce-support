@@ -20,7 +20,7 @@ keywords:
 - Composer: `aiarmada/commerce-support`
 - Role: Shared foundation: owner scoping, contracts, targeting engine, webhooks, health, money, reference data.
 - Triggers: owner-scope, contracts, targeting, webhooks, health, money, primitives
-- Search first: `src/Models, src/Actions, src/Support, src/Contracts, src/Targeting, config, docs`
+- Search first: `src/Features, src/Models, src/Actions, src/Support, src/Contracts, src/Targeting, config, docs`
 - Related: `authz`, `filament-authz`, `filament-commerce-support`
 - Paired: `filament-commerce-support` (Filament admin adapter)
 
@@ -43,8 +43,8 @@ keywords:
 - Owner/security: Defines the owner boundary (HasOwner, OwnerScope, OwnerContext).
 
 ## Key surfaces
-- Models: `Currency`, `Language`, `NotificationPreference`, `Report`, `SavedSearch`, `Tag`, `Timezone`
-- Actions/Services: `Actions/DiscoverCommerceMigrationPublishTagsAction`, `Actions/DiscoverCommercePublishTagsAction`, `Actions/EnsureCustomGuidelinesSymlinkAction`, `Actions/ProcessWebhookCallAction`, `Actions/ResolveOwnedModelOrFailAction`, `Actions/ResolveOwnerJobContextAction`, `Actions/ResolveProjectRootAction`, `Actions/SeedCurrenciesAction`
+- Models: `Features/ReferenceData/Models/{Currency,Language,Timezone}`, `Features/UserPreferences/Models/{NotificationPreference,SavedSearch}`, `Features/Reporting/Models/Report`, `Tag`
+- Actions/Services: `Actions/DiscoverCommerceMigrationPublishTagsAction`, `Actions/DiscoverCommercePublishTagsAction`, `Actions/EnsureCustomGuidelinesSymlinkAction`, `Features/Webhooks/Actions/ProcessWebhookCallAction`, `Actions/ResolveOwnedModelOrFailAction`, `Actions/ResolveProjectRootAction`, `Features/ReferenceData/Actions/SeedCurrenciesAction`
 - Config `commerce-support.php`: `database`, `morph_key_type`, `json_column_type`, `tables`, `saved_searches`, `reports`, `notification_preferences`, `languages`, `currencies`, `timezones`
 
 ## Docs map

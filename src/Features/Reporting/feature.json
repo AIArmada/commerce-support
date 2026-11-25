@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "name": "Reporting",
+  "owns": {
+    "table:reports": [
+      "AIArmada\\CommerceSupport\\Features\\Reporting\\Actions\\CreateReport",
+      "AIArmada\\CommerceSupport\\Features\\Reporting\\Actions\\TransitionReport"
+    ]
+  },
+  "extensions": {}
+}

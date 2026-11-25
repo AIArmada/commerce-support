@@ -256,11 +256,11 @@ For route-bound models, use `OwnerRouteBinding` so resolved records are validate
 
 Use `OwnerContextJob` for queued jobs that must re-enter owner context safely.
 
-Prefer an explicit `OwnerScopedJob` contract that returns `OwnerJobContext`:
+Implement the `OwnerScopedJob` contract and return `OwnerJobContext`:
 
 ```php
 use AIArmada\CommerceSupport\Contracts\OwnerScopedJob;
-use AIArmada\CommerceSupport\Support\OwnerJobContext;
+use AIArmada\CommerceSupport\Data\OwnerJobContext;
 use AIArmada\CommerceSupport\Traits\OwnerContextJob;
 
 final class ExportOrdersJob implements OwnerScopedJob, ShouldQueue
@@ -291,14 +291,7 @@ final class ExportOrdersJob implements OwnerScopedJob, ShouldQueue
 
 If a queue/event payload is serialized externally (wire format), use snake_case keys (`owner_type`, `owner_id`) and map them to camelCase PHP fields at the boundary.
 
-For simpler jobs that do not implement `OwnerScopedJob`, `ResolveOwnerJobContextAction` resolves owner context from public payload data, in this order:
-
-1. explicit `ownerType` / `ownerId` / `ownerIsGlobal` public properties (always win, regardless of property declaration order),
-2. a public model property whose `getOwner()` returns a model,
-3. a public model property with a non-null owner tuple (`OwnerTupleColumns::forModelClass()`),
-4. a public `OwnerScopeIdentifiable` property.
-
-Arbitrary model payloads are never treated as the tenant owner: a model with a global owner tuple contributes no owner context. Jobs that must run without an owner declare it explicitly (`ownerIsGlobal = true` or `OwnerScopedJob`), and when owner mode is enabled a job with no resolvable owner fails closed. Prefer `OwnerScopedJob` for explicit behavior.
+The job must declare its owner context explicitly. The trait does not inspect arbitrary job payloads. When owner mode is enabled, an unspecified owner fails closed; use `OwnerJobContext::explicitGlobal()` only for deliberately global work.
 
 ## Owner lifecycle events
 

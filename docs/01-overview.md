@@ -137,8 +137,8 @@ The service provider auto-registers via Laravel package discovery. After install
 ### Isolation primitives
 
 ```php
-use AIArmada\CommerceSupport\Support\OwnerCache;
-use AIArmada\CommerceSupport\Support\OwnerFilesystem;
+use AIArmada\CommerceSupport\Persistence\OwnerCache;
+use AIArmada\CommerceSupport\Persistence\OwnerFilesystem;
 
 $summary = OwnerCache::remember($owner, 'cart.summary', now()->addMinutes(30), function () use ($cart) {
     return $cart->computeSummary();

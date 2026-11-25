@@ -35,7 +35,7 @@ use OwenIt\Auditing\Models\Audit;
  * }
  * ```
  */
-trait HasCommerceAudit // @phpstan-ignore trait.unused
+trait HasCommerceAudit
 {
     use Auditable;
 

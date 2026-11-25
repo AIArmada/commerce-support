@@ -4,23 +4,13 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Traits;
 
-use AIArmada\CommerceSupport\Actions\ResolveOwnerJobContextAction;
+use AIArmada\CommerceSupport\Data\OwnerJobContext;
 use AIArmada\CommerceSupport\Support\OwnerContext;
-use AIArmada\CommerceSupport\Support\OwnerJobContext;
+use AIArmada\CommerceSupport\Support\OwnerJobContextMapper;
 use Illuminate\Queue\SerializesModels;
 use RuntimeException;
 
-/**
- * Trait for queued jobs that require owner context.
- *
- * Automatically enters the owner context when the job runs, preventing
- * cross-tenant data access in a shared-database multitenancy model.
- *
- * Jobs using this trait should include either:
- * - a public owner-bearing model property,
- * - explicit public `ownerType` / `ownerId` payload fields,
- * - or implement {@see OwnerScopedJob} for fully explicit owner context payloads.
- */
+/** Restore the explicit owner context before executing queued work. */
 trait OwnerContextJob
 {
     use SerializesModels;
@@ -35,7 +25,7 @@ trait OwnerContextJob
      */
     final public function handle(): void
     {
-        $ownerContext = $this->resolveOwnerContextFromJob();
+        $ownerContext = $this->ownerContext();
 
         if ($ownerContext->isExplicitGlobal()) {
             OwnerContext::withOwner(null, function (): void {
@@ -45,7 +35,7 @@ trait OwnerContextJob
             return;
         }
 
-        $owner = $ownerContext->toOwnerModelOrFail();
+        $owner = OwnerJobContextMapper::resolve($ownerContext);
 
         if ($owner === null) {
             if (config('commerce-support.owner.enabled', false)) {
@@ -75,15 +65,5 @@ trait OwnerContextJob
      */
     abstract protected function performJob(): void;
 
-    /**
-     * Resolve owner context from the job payload.
-     *
-     * If the job implements {@see OwnerScopedJob}, that explicit context is used.
-     * Otherwise, the trait inspects public properties for owner-bearing models,
-     * `ownerType` / `ownerId` pairs, and explicit-global flags.
-     */
-    protected function resolveOwnerContextFromJob(): OwnerJobContext
-    {
-        return ResolveOwnerJobContextAction::run(job: $this);
-    }
+    abstract public function ownerContext(): OwnerJobContext;
 }

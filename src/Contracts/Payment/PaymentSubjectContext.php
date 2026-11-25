@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Contracts\Payment;
 
-use Illuminate\Database\Eloquent\Model;
+use AIArmada\CommerceSupport\Data\PaymentActorData;
+use AIArmada\CommerceSupport\Data\RecordReference;
 
 final readonly class PaymentSubjectContext
 {
@@ -15,14 +16,14 @@ final readonly class PaymentSubjectContext
      */
     public function __construct(
         public string $gateway,
-        public ?Model $actor = null,
-        public ?Model $subject = null,
-        public ?Model $sessionCustomer = null,
-        public ?Model $sessionBillable = null,
+        public ?PaymentActorData $actor = null,
+        public ?RecordReference $subject = null,
+        public ?RecordReference $sessionCustomer = null,
+        public ?RecordReference $sessionBillable = null,
         public array $billingData = [],
         public array $shippingData = [],
         public array $metadata = [],
-        public ?Model $owner = null,
+        public ?RecordReference $owner = null,
         public string $source = 'checkout',
     ) {}
 }

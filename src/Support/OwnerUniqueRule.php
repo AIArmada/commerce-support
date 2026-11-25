@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Support;
 
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Validation\Rules\Unique;
@@ -38,7 +39,7 @@ final class OwnerUniqueRule
             return $rule;
         }
 
-        $owner = $config->owner ?? OwnerContext::resolve();
+        $owner = OwnerContext::resolveConfigured($config);
 
         OwnerContext::assertResolvedOrExplicitGlobal(
             $owner,

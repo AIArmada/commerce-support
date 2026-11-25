@@ -37,3 +37,7 @@ The `timezones` table contains shared IANA timezone identifiers.
 ```bash
 php artisan db:seed --class="AIArmada\CommerceSupport\Database\Seeders\TimezoneSeeder"
 ```
+
+## Package integration
+
+Business consumers should inject `AIArmada\CommerceSupport\Features\ReferenceData\Api\ReferenceDataApi` for seeding, code-to-ID maps and language options. The API returns scalar values and arrays, not Eloquent builders or models. Filament resources and Eloquent relationships may bind the reference models in `Features/ReferenceData/Models` at their framework integration boundary.

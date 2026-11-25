@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Database\Seeders;
 
-use AIArmada\CommerceSupport\Actions\SeedLanguagesAction;
+use AIArmada\CommerceSupport\Features\ReferenceData\Api\ReferenceDataApi;
 use Illuminate\Database\Seeder;
 
 final class LanguageSeeder extends Seeder
 {
     public function run(): void
     {
-        app(SeedLanguagesAction::class)->execute();
+        app(ReferenceDataApi::class)->seedLanguages();
     }
 }

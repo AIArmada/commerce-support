@@ -309,12 +309,9 @@ final readonly class OwnerReference implements OwnerScopeIdentifiable
 
 ### OwnerContextJob cannot resolve explicit owner payload
 
-**Cause:** The job payload does not expose owner data through either:
+**Cause:** The declared `OwnerJobContext` is incomplete or its owner no longer exists.
 
-- a public owner-bearing model property, or
-- public `ownerType` / `ownerId` / `ownerIsGlobal` fields
-
-**Solution:** expose one of those patterns publicly so the trait can resolve the owner before `performJob()` runs.
+**Solution:** Implement `OwnerScopedJob::ownerContext()` and supply a valid persisted owner identity, or `OwnerJobContext::explicitGlobal()` for deliberately global work.
 
 ## Health Check Issues
 

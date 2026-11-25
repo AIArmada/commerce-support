@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Support\OwnerTuple;
 
-use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use InvalidArgumentException;
 
 final readonly class OwnerTupleColumns

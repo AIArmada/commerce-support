@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "name": "ReferenceData",
+  "owns": {
+    "table:currencies": [
+      "AIArmada\\CommerceSupport\\Features\\ReferenceData\\Actions\\SeedCurrenciesAction"
+    ],
+    "table:languages": [
+      "AIArmada\\CommerceSupport\\Features\\ReferenceData\\Actions\\SeedLanguagesAction"
+    ],
+    "table:timezones": [
+      "AIArmada\\CommerceSupport\\Features\\ReferenceData\\Actions\\SeedTimezonesAction"
+    ]
+  },
+  "extensions": {}
+}

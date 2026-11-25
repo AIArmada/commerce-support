@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "name": "UserPreferences",
+  "owns": {
+    "table:saved_searches": [
+      "AIArmada\\CommerceSupport\\Features\\UserPreferences\\Actions\\CreateSavedSearch",
+      "AIArmada\\CommerceSupport\\Features\\UserPreferences\\Actions\\UpdateSavedSearch",
+      "AIArmada\\CommerceSupport\\Features\\UserPreferences\\Actions\\DeleteSavedSearch"
+    ],
+    "table:notification_preferences": [
+      "AIArmada\\CommerceSupport\\Features\\UserPreferences\\Actions\\SaveNotificationPreference",
+      "AIArmada\\CommerceSupport\\Features\\UserPreferences\\Actions\\DeleteNotificationPreference"
+    ]
+  },
+  "extensions": {}
+}

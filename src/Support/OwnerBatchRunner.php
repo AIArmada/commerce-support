@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\CommerceSupport\Support;
 
+use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleColumns;
 use AIArmada\CommerceSupport\Support\OwnerTuple\OwnerTupleParser;
 use Illuminate\Database\Eloquent\Model;
@@ -102,8 +103,8 @@ final class OwnerBatchRunner
 
         $columns = OwnerTupleColumns::forModelClass($this->modelClass);
 
-        /** @var Collection<int, ?Model> $owners */
-        $owners = collect();
+        /** @var list<Model|null> $owners */
+        $owners = [];
         $seenGlobal = false;
 
         $rows = $model->getConnection()->table($model->getTable())
@@ -122,16 +123,15 @@ final class OwnerBatchRunner
                 }
 
                 $seenGlobal = true;
-                $owners->push(null);
+                $owners[] = null;
 
                 continue;
             }
 
-            $owners->push($parsed->toOwnerModelOrFail());
+            $owners[] = $parsed->toOwnerModelOrFail();
         }
 
-        // @phpstan-ignore-next-line Collection covariance false positive with exact array shape.
-        return $owners;
+        return collect($owners);
     }
 
     /**

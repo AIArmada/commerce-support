@@ -412,16 +412,16 @@ $owner = OwnerContext::fromTypeAndId(
 
 `OwnerContext::setForRequest()` is reserved for middleware/framework integrations during active HTTP requests. It throws outside HTTP request lifecycle; use `OwnerContext::withOwner(...)` in jobs/commands and other non-HTTP surfaces.
 
-When using `OwnerContextJob`, prefer an explicit `OwnerScopedJob` implementation that returns `OwnerJobContext`.
+When using `OwnerContextJob`, implement `OwnerScopedJob` and return `OwnerJobContext`.
 
-Jobs that do not implement `OwnerScopedJob` resolve owner context from public payload data only: explicit `ownerType` / `ownerId` / `ownerIsGlobal` properties (which always win), a model property exposing `getOwner()`, a model property with a non-null owner tuple, or an `OwnerScopeIdentifiable` property. Arbitrary model payloads are never treated as the tenant owner — a global owner tuple contributes no context — and when owner mode is enabled a job with no resolvable owner fails closed. When owner mode is disabled and no owner is resolvable, `performJob()` runs directly without entering explicit global context.
+A job declares its context through `ownerContext()`. No owner is inferred from model properties. When owner mode is enabled an unspecified owner fails closed. When owner mode is disabled and no owner is declared, `performJob()` runs directly without entering explicit global context.
 
 Laravel convention guidance:
 
 - Use camelCase for PHP fields (`ownerType`, `ownerId`, `ownerIsGlobal`)
 - Keep snake_case for persistence/wire payload keys (`owner_type`, `owner_id`)
 
-`ownerIsGlobal=true` is mutually exclusive with explicit `ownerType` / `ownerId` values; contradictory payloads fail closed. When explicit payload fields are present they win over every model-derived source.
+`ownerIsGlobal=true` is mutually exclusive with explicit `ownerType` / `ownerId` values; contradictory payloads fail closed.
 
 ## OwnerScopeIdentifiable
 
@@ -641,7 +641,7 @@ Guests hash to `sha256(ip|user-agent)`: repeat submitters stay recognizable with
 
 ```php
 use AIArmada\CommerceSupport\Contracts\SlugRedirectRecorder;
-use AIArmada\CommerceSupport\Support\CanonicalSlug;
+use AIArmada\CommerceSupport\Persistence\CanonicalSlug;
 
 $changed = CanonicalSlug::persist($venue, $slug, app(SlugRedirectRecorder::class));
 ```

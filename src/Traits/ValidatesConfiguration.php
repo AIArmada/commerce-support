@@ -6,7 +6,7 @@ namespace AIArmada\CommerceSupport\Traits;
 
 use RuntimeException;
 
-trait ValidatesConfiguration // @phpstan-ignore trait.unused
+trait ValidatesConfiguration
 {
     /**
      * Validate that required configuration keys exist.

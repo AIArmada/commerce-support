@@ -41,10 +41,10 @@ final class GuestPaymentSubjectDriver implements PaymentSubjectDriverInterface
                 name: $this->cleanString($context->billingData['name'] ?? null)
                     ?? $this->fullNameFromParts($context->billingData)
                     ?? $this->cleanString($context->shippingData['name'] ?? null)
-                    ?? $this->cleanString($context->actor?->getAttribute('name')),
+                    ?? $this->cleanString($context->actor?->name),
                 phone: $this->cleanString($context->billingData['phone'] ?? null)
                     ?? $this->cleanString($context->shippingData['phone'] ?? null)
-                    ?? $this->cleanString($context->actor?->getAttribute('phone')),
+                    ?? $this->cleanString($context->actor?->phone),
                 country: $this->cleanString($context->billingData['country'] ?? null)
                     ?? $this->cleanString($context->shippingData['country'] ?? null)
                     ?? 'MY',
@@ -70,7 +70,7 @@ final class GuestPaymentSubjectDriver implements PaymentSubjectDriverInterface
     {
         return $this->cleanString($context->billingData['email'] ?? null)
             ?? $this->cleanString($context->shippingData['email'] ?? null)
-            ?? $this->cleanString($context->actor?->getAttribute('email'));
+            ?? $this->cleanString($context->actor?->email);
     }
 
     /**
