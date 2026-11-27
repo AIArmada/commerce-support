@@ -227,7 +227,7 @@ EnsureCustomGuidelinesSymlinkAction::run(
 
 ## OwnerBatchRunner
 
-**Purpose:** Iterate over all owners of a given model class and run a callback for each, in a scoped `OwnerContext`.
+**Purpose:** Run a callback in the current owner context or discover the owners of a given model for a system-wide batch.
 
 **Use case:** Console commands, batch jobs, scheduled tasks that need to operate per-owner.
 
@@ -249,18 +249,20 @@ $counts = $runner->run(function () {
 });
 
 // forEach returns a collection with one entry per owner
-$allResults = $runner->forEach(function ($owner) {
-    return Product::forOwner($owner)->count();
+$allResults = $runner->forEach(function () {
+    return Product::query()->count();
 });
 ```
 
 **Features:**
+- Runs the callback once when an owner is resolved or the caller has entered explicit global context with `OwnerContext::withOwner(null, ...)`
 - Iterates owners via distinct owner_type/owner_id from the model table
 - Wraps each iteration in `OwnerContext::withOwner()`
 - Pass `null` for `ownerConfig` to fall back to the model's `ownerScopeConfig()` for the enabled state and include-global suppression
 - When `include_global` resolves truthy (from `ownerConfig` or the model config), iteration runs under `OwnerScopeOverride::withoutIncludeGlobal()` so per-owner work never picks up global rows
 - `run()` returns reduced results (sum for ints, merged sums for numeric array values, otherwise the first non-null result)
-- `forEach()` returns a Collection of all results
+- `forEach()` returns a collection of all results
+- System maintenance commands can call `forEachAcrossOwners()` to discover and scope each owner regardless of the caller’s current context
 
 ---
 
