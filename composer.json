@@ -24,7 +24,7 @@
         "spatie/laravel-medialibrary": "^11.23.11",
         "spatie/laravel-package-tools": "^1.93.3",
         "spatie/laravel-settings": "^3.10.1",
-        "spatie/laravel-sluggable": "^4.0.6",
+        "spatie/laravel-sluggable": "^6.0",
         "spatie/laravel-translatable": "^6.15.0",
         "spatie/laravel-model-states": "^2.14.3",
         "spatie/laravel-tags": "^4.12.0",
