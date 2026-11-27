@@ -152,8 +152,12 @@ final class ProcessWebhookCallAction
      * @param  (callable(array<string, mixed>): array{0: string|null, 1: string|null})|null  $extractOwner
      * @return array{WebhookCall, string, array<string, mixed>, bool}|null
      */
-    private function claim(WebhookCall $webhookCall, callable $extractEventType, callable $extractEventId, ?callable $extractOwner = null): ?array
-    {
+    private function claim(
+        WebhookCall $webhookCall,
+        callable $extractEventType,
+        callable $extractEventId,
+        ?callable $extractOwner = null,
+    ): ?array {
         try {
             return DB::transaction(function () use ($webhookCall, $extractEventType, $extractEventId, $extractOwner): ?array {
                 /** @var WebhookCall|null $locked */
@@ -202,14 +206,76 @@ final class ProcessWebhookCallAction
                 return [$locked, $eventType, $payload, $supportsOwnerDedup];
             });
         } catch (QueryException $e) {
-            if ($this->isUniqueViolation($e)) {
-                $this->markProcessedAsDuplicate($webhookCall->getKey(), self::modelSupportsOwnerDedup($webhookCall));
-
-                return null;
+            if (! $this->isUniqueViolation($e)) {
+                throw $e;
             }
 
-            throw $e;
+            if ($this->releaseFailedHolder($webhookCall, $extractEventType, $extractEventId, $extractOwner)) {
+                return $this->claim($webhookCall, $extractEventType, $extractEventId, $extractOwner);
+            }
+
+            $this->markProcessedAsDuplicate($webhookCall->getKey(), self::modelSupportsOwnerDedup($webhookCall));
+
+            return null;
         }
+    }
+
+    /**
+     * @param  callable(array<string, mixed>): string  $extractEventType
+     * @param  callable(array<string, mixed>): (string|null)  $extractEventId
+     * @param  (callable(array<string, mixed>): array{0: string|null, 1: string|null})|null  $extractOwner
+     */
+    private function releaseFailedHolder(
+        WebhookCall $webhookCall,
+        callable $extractEventType,
+        callable $extractEventId,
+        ?callable $extractOwner,
+    ): bool {
+        $payload = $webhookCall->payload ?? [];
+
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $eventType = $extractEventType($payload);
+        $eventId = $extractEventId($payload) ?? self::payloadHash($payload);
+        $supportsOwnerDedup = self::modelSupportsOwnerDedup($webhookCall);
+        $ownerHash = null;
+
+        if ($supportsOwnerDedup) {
+            [$ownerType, $ownerId] = $extractOwner !== null
+                ? $extractOwner($payload)
+                : [null, null];
+            $ownerHash = self::ownerHashFor([$ownerType, $ownerId]);
+        }
+
+        return DB::transaction(function () use ($webhookCall, $eventType, $eventId, $ownerHash, $supportsOwnerDedup): bool {
+            $query = WebhookCall::query()
+                ->where('name', $webhookCall->name)
+                ->whereKeyNot($webhookCall->getKey())
+                ->where('event_id', $eventId)
+                ->where('event_type', $eventType)
+                ->lockForUpdate();
+
+            if ($supportsOwnerDedup) {
+                $query->where('owner_hash', $ownerHash);
+            }
+
+            $holder = $query->first();
+
+            if (! $holder instanceof WebhookCall
+                || $holder->getAttribute('processed_at') !== null
+                || $holder->getAttribute('status') !== 'failed') {
+                return false;
+            }
+
+            $holder->forceFill([
+                'status' => 'superseded',
+                'event_id' => 'superseded:' . hash('sha256', (string) $holder->getKey() . ':' . microtime(true)),
+            ])->save();
+
+            return true;
+        });
     }
 
     private function isStaleClaim(WebhookCall $locked): bool
