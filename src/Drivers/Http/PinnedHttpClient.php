@@ -13,6 +13,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 final class PinnedHttpClient
 {
@@ -191,19 +192,70 @@ final class PinnedHttpClient
             $curlOptions[constant('CURLOPT_LOW_SPEED_TIME')] = max(1, $timeout);
         }
 
-        return $this->sendFollowingRedirects(
-            guard: $guard,
-            method: 'GET',
-            url: $url,
-            options: $curlOptions !== [] ? ['curl' => $curlOptions] : [],
-            headers: $headers,
-            maxRedirects: $maxRedirects,
-            connectTimeout: $connectTimeout,
-            timeout: $timeout,
-            attempts: 1,
-            retrySleepMilliseconds: 0,
-            configure: $configure,
-        );
+        $target = $guard->validate($url);
+
+        for ($hop = 0; $hop <= $maxRedirects; $hop++) {
+            $options = ['sink' => new BoundedResponseBodyStream($maxBytes)];
+
+            if ($curlOptions !== []) {
+                $options['curl'] = $curlOptions;
+            }
+
+            try {
+                $response = $this->send(
+                    method: 'GET',
+                    target: $target,
+                    options: $options,
+                    headers: $headers,
+                    connectTimeout: $connectTimeout,
+                    timeout: $timeout,
+                    attempts: 1,
+                    retrySleepMilliseconds: 0,
+                    configure: $configure === null
+                        ? null
+                        : static function (PendingRequest $pending, ValidatedHttpTarget $currentTarget) use ($configure, $hop): void {
+                            $configure($pending, $currentTarget, $hop);
+                        },
+                );
+            } catch (Throwable $exception) {
+                if (self::isResponseBodyLimitExceeded($exception)) {
+                    return null;
+                }
+
+                throw $exception;
+            }
+
+            if (! in_array($response->status(), [301, 302, 303, 307, 308], true)) {
+                return $response;
+            }
+
+            if ($maxRedirects === 0) {
+                return $response;
+            }
+
+            if ($hop === $maxRedirects) {
+                throw new InvalidArgumentException('Too many or empty redirects from remote host.');
+            }
+
+            $location = mb_trim((string) $response->header('Location'));
+
+            if ($location === '') {
+                throw new InvalidArgumentException('Too many or empty redirects from remote host.');
+            }
+
+            $nextUrl = self::resolveRelativeUrl($target->url, $location);
+            $next = $guard->validate($nextUrl);
+
+            if ($next->host !== $target->host || $next->scheme !== $target->scheme || $next->port !== $target->port) {
+                if ($configure !== null || $headers !== []) {
+                    throw new InvalidArgumentException('Cross-origin redirects with request configuration or credentials are not allowed.');
+                }
+            }
+
+            $target = $next;
+        }
+
+        throw new InvalidArgumentException('Unable to resolve public redirect destination.');
     }
 
     public function readBoundedBody(Response $response, int $maxBytes): ?string
@@ -239,6 +291,17 @@ final class PinnedHttpClient
         }
 
         return $body;
+    }
+
+    private static function isResponseBodyLimitExceeded(Throwable $exception): bool
+    {
+        for ($current = $exception; $current instanceof Throwable; $current = $current->getPrevious()) {
+            if ($current instanceof ResponseBodyLimitExceeded) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function resolveRelativeUrl(string $baseUrl, string $location): string
