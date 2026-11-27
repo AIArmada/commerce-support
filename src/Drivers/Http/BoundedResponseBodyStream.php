@@ -22,8 +22,12 @@ final class BoundedResponseBodyStream extends Stream
         parent::__construct($resource);
     }
 
-    public function write(string $string): int
+    /**
+     * @param  string  $string
+     */
+    public function write(mixed $string): int
     {
+        $string = (string) $string;
         $length = mb_strlen($string, '8bit');
 
         if ($this->bytesWritten + $length > $this->maxBytes) {
