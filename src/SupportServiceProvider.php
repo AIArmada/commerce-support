@@ -26,6 +26,7 @@ use AIArmada\CommerceSupport\Support\Payment\GuestPaymentSubjectDriver;
 use AIArmada\CommerceSupport\Support\Payment\PaymentSubjectResolver;
 use AIArmada\CommerceSupport\Support\PublicHttpUrlGuard;
 use AIArmada\CommerceSupport\Support\SettingsExchangeRateProvider;
+use AIArmada\CommerceSupport\Support\SettingsMigrationPath;
 use AIArmada\CommerceSupport\Targeting\Contracts\TargetingEngineInterface;
 use AIArmada\CommerceSupport\Targeting\TargetingEngine;
 use Filament\Support\Assets\Js;
@@ -447,19 +448,7 @@ final class SupportServiceProvider extends PackageServiceProvider
 
     private function registerSettingsMigrationPath(): void
     {
-        $packagePath = __DIR__ . '/../database/settings';
-
-        if (! is_dir($packagePath)) {
-            return;
-        }
-
-        $paths = config('settings.migrations_paths', []);
-
-        if (! in_array($packagePath, $paths, true)) {
-            $paths[] = $packagePath;
-
-            config(['settings.migrations_paths' => $paths]);
-        }
+        SettingsMigrationPath::register($this->app, __DIR__ . '/../database/settings');
     }
 
     private function registerTargetingEngine(): void
